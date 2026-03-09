@@ -68,9 +68,15 @@ All endpoints prefixed with `/api/`:
 
 ## Landy Webhook Integration
 - **Route**: `POST /api/webhooks/landy` (in `server/routes.ts`)
-- **Auth**: `X-Landy-Signature` header validated against `LANDY_WEBHOOK_SECRET` env var
-- **Required fields**: `full_name`, `phone`, `email`, `source`
-- **Optional fields**: `notes`, `address`, `tax_id`
+- **Auth**: `x-landy-signature` header compared against `LANDY_WEBHOOK_SECRET` env var (with trim)
+- **Flexible field mapping** (supports multiple Landy payload formats):
+  - `full_name`: body.full_name || body.name || body.fullName || form_data.full_name || form_data.name
+  - `phone`: body.phone || body.telephone || body.tel || form_data.phone
+  - `email`: body.email || body.mail || form_data.email
+  - `source`: body.source || body.page_name || "landy" (mapped to VALID_SOURCES or "other")
+  - `notes`: body.notes || body.message || body.comment || form_data equivalents
+  - `address`, `tax_id`: direct or form_data
+- **Required fields**: full_name, phone
 - **Dedup**: Checks for existing client by phone or email before creating (uses `findClientByPhoneOrEmail` in storage)
 - **New lead**: Creates client with `status: "lead"`, `clientProcessStatus: "lead"`
 - **Existing lead**: Updates the existing record instead of duplicating
