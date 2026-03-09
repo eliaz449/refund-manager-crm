@@ -17,19 +17,19 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Clients", url: "/clients", icon: Users },
-  { title: "Cases", url: "/cases", icon: Briefcase },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare },
-  { title: "Payments", url: "/payments", icon: CreditCard },
-  { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
+  { title: "לוח בקרה", url: "/", icon: LayoutDashboard },
+  { title: "לקוחות", url: "/clients", icon: Users },
+  { title: "תיקים", url: "/cases", icon: Briefcase },
+  { title: "משימות", url: "/tasks", icon: CheckSquare },
+  { title: "תשלומים", url: "/payments", icon: CreditCard },
+  { title: "תנועות", url: "/transactions", icon: ArrowLeftRight },
 ];
 
 export function AppSidebar() {
   const [location] = useLocation();
 
   return (
-    <Sidebar>
+    <Sidebar side="right">
       <SidebarHeader className="p-4">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer" data-testid="link-home">
@@ -38,14 +38,14 @@ export function AppSidebar() {
             </div>
             <div>
               <h2 className="text-sm font-semibold tracking-tight">TaxPro CRM</h2>
-              <p className="text-xs text-muted-foreground">Management Platform</p>
+              <p className="text-xs text-muted-foreground">מערכת ניהול</p>
             </div>
           </div>
         </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>ניווט</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainItems.map((item) => {
@@ -53,13 +53,13 @@ export function AppSidebar() {
                   ? location === "/"
                   : location.startsWith(item.url);
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton
                       asChild
                       data-active={isActive}
                       className="data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
                     >
-                      <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
+                      <Link href={item.url} data-testid={`link-nav-${item.url.replace("/", "") || "dashboard"}`}>
                         <item.icon className="w-4 h-4" />
                         <span>{item.title}</span>
                       </Link>

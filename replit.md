@@ -3,6 +3,17 @@
 ## Overview
 A production-ready CRM platform for managing a tax refund and accounting firm. Built with a modern full-stack architecture.
 
+## Language & RTL
+- **UI Language**: Hebrew (all labels, buttons, titles, table headers, messages, placeholders)
+- **Layout Direction**: RTL (`dir="rtl"` on `<html>`, `lang="he"`)
+- **Backend/DB**: All field names, API routes, variables, schema remain in English
+- **Font**: Rubik (primary), Open Sans (fallback) — both support Hebrew
+- **Currency**: ILS formatted with `he-IL` locale
+- **Search icons**: Positioned on right side (`right-3`, `pr-9`) for RTL
+- **Back navigation**: Uses `ArrowRight` icon (RTL-appropriate)
+- **Sidebar**: Rendered on right side (`side="right"`)
+- **Status badges**: Hebrew label translations via `hebrewLabels` map in `status-badge.tsx`
+
 ## Tech Stack
 - **Frontend**: React + TypeScript + Vite + TailwindCSS + Shadcn UI
 - **Backend**: Express.js + TypeScript

@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+  updated_date DateTime @updatedAt
+  created_by   String?
+
+  full_name    String
+  email        String   @unique
+  password     String
+  role         Role
+
+  clients_assigned Client[]
+  tasks_assigned   Task[]
+  cases_assigned   Case[]
+}
+
+enum Role {
+  admin
+  user
+  accountant
+}
+
+model Client {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+  updated_date DateTime @updatedAt
+  created_by   String?
+
+  full_name    String
+  client_type  ClientType?
+  phone        String?
+  email        String?
+  tax_id       String?
+  address      String?
+
+  status       ClientStatus?
+
+  notes        String?
+
+  onboarding_date DateTime?
+
+  assigned_accountant_id String?
+  assigned_accountant User? @relation(fields: [assigned_accountant_id], references: [id])
+
+  cases        Case[]
+  tasks        Task[]
+  documents    Document[]
+  payments     Payment[]
+}
+
+enum ClientType {
+  private_individual
+  self_employed
+}
+
+enum ClientStatus {
+  lead
+  active
+  inactive
+}
+
+model Case {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+  updated_date DateTime @updatedAt
+  created_by   String?
+
+  client_id    String
+  client       Client @relation(fields: [client_id], references: [id])
+
+  service_type ServiceType
+
+  tax_year     Int?
+  refund_estimate Float?
+
+  status       CaseStatus?
+
+  assigned_to  String?
+  assigned_user User? @relation(fields: [assigned_to], references: [id])
+
+  tasks        Task[]
+  documents    Document[]
+  payments     Payment[]
+  time_entries TimeEntry[]
+}
+
+enum ServiceType {
+  tax_refund
+  bookkeeping
+  annual_report
+  quarterly_report
+  vat_report
+  business_registration
+  consultation
+  other
+}
+
+enum CaseStatus {
+  new
+  document_collection
+  in_progress
+  review
+  submitted
+  pending_tax_authority
+  completed
+  cancelled
+}
+
+model Task {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+  updated_date DateTime @updatedAt
+  created_by   String?
+
+  task_name    String
+
+  client_id    String
+  client       Client @relation(fields: [client_id], references: [id])
+
+  case_id      String?
+  case         Case? @relation(fields: [case_id], references: [id])
+
+  assigned_to  String
+  assigned_user User @relation(fields: [assigned_to], references: [id])
+
+  due_date     DateTime
+
+  status       TaskStatus
+  priority     TaskPriority?
+
+  notes        String?
+}
+
+enum TaskStatus {
+  not_started
+  in_progress
+  completed
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+  updated_date DateTime @updatedAt
+
+  document_name String
+  file_url      String
+
+  client_id String?
+  client    Client? @relation(fields: [client_id], references: [id])
+
+  case_id   String
+  case      Case @relation(fields: [case_id], references: [id])
+}
+
+model Payment {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+
+  client_id String
+  client    Client @relation(fields: [client_id], references: [id])
+
+  case_id   String
+  case      Case @relation(fields: [case_id], references: [id])
+
+  amount       Float
+  payment_date DateTime
+  status       PaymentStatus
+}
+
+enum PaymentStatus {
+  paid
+  pending
+  cancelled
+}
+
+model TimeEntry {
+  id           String   @id @default(uuid())
+  created_date DateTime @default(now())
+
+  case_id String
+  case    Case @relation(fields: [case_id], references: [id])
+
+  hours_spent Float
+  description String
+}

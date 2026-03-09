@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
-import { ArrowLeft, Phone, Mail, MapPin, FileText, Briefcase, CheckSquare, CreditCard, Save } from "lucide-react";
+import { ArrowRight, Phone, Mail, MapPin, FileText, Briefcase, CheckSquare, CreditCard, Save } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +17,27 @@ import type { Client, Case, Task, Payment } from "@shared/schema";
 import { useState, useEffect } from "react";
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
 }
+
+const serviceTypeLabels: Record<string, string> = {
+  tax_refund: "החזר מס",
+  bookkeeping: "הנהלת חשבונות",
+  annual_report: "דוח שנתי",
+  quarterly_report: "דוח רבעוני",
+  vat_report: 'דוח מע"מ',
+  business_registration: "רישום עסק",
+  consultation: "ייעוץ",
+  other: "אחר",
+};
+
+const paymentMethodLabels: Record<string, string> = {
+  credit_card: "כרטיס אשראי",
+  bank_transfer: "העברה בנקאית",
+  check: "צ׳ק",
+  cash: "מזומן",
+  other: "אחר",
+};
 
 export default function ClientDetail() {
   const [, params] = useRoute("/clients/:id");
@@ -59,10 +78,10 @@ export default function ClientDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId] });
-      toast({ title: "Client updated" });
+      toast({ title: "הלקוח עודכן בהצלחה" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
     },
   });
 
@@ -78,9 +97,9 @@ export default function ClientDetail() {
   if (!client) {
     return (
       <div className="p-6">
-        <p className="text-muted-foreground">Client not found</p>
+        <p className="text-muted-foreground">הלקוח לא נמצא</p>
         <Button variant="outline" onClick={() => setLocation("/clients")} className="mt-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />Back to Clients
+          <ArrowRight className="w-4 h-4 ml-2" />חזרה ללקוחות
         </Button>
       </div>
     );
@@ -90,7 +109,7 @@ export default function ClientDetail() {
     <div className="p-6 space-y-6 overflow-auto h-full">
       <div className="flex items-center gap-3">
         <Button size="icon" variant="ghost" onClick={() => setLocation("/clients")} data-testid="button-back">
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-client-name">{client.fullName}</h1>
@@ -121,10 +140,10 @@ export default function ClientDetail() {
 
       <Tabs defaultValue="details">
         <TabsList data-testid="tabs-client-detail">
-          <TabsTrigger value="details" data-testid="tab-details"><FileText className="w-4 h-4 mr-1" />Details</TabsTrigger>
-          <TabsTrigger value="cases" data-testid="tab-cases"><Briefcase className="w-4 h-4 mr-1" />Cases ({clientCases?.length || 0})</TabsTrigger>
-          <TabsTrigger value="tasks" data-testid="tab-tasks"><CheckSquare className="w-4 h-4 mr-1" />Tasks ({clientTasks?.length || 0})</TabsTrigger>
-          <TabsTrigger value="payments" data-testid="tab-payments"><CreditCard className="w-4 h-4 mr-1" />Payments ({clientPayments?.length || 0})</TabsTrigger>
+          <TabsTrigger value="details" data-testid="tab-details"><FileText className="w-4 h-4 ml-1" />פרטים</TabsTrigger>
+          <TabsTrigger value="cases" data-testid="tab-cases"><Briefcase className="w-4 h-4 ml-1" />תיקים ({clientCases?.length || 0})</TabsTrigger>
+          <TabsTrigger value="tasks" data-testid="tab-tasks"><CheckSquare className="w-4 h-4 ml-1" />משימות ({clientTasks?.length || 0})</TabsTrigger>
+          <TabsTrigger value="payments" data-testid="tab-payments"><CreditCard className="w-4 h-4 ml-1" />תשלומים ({clientPayments?.length || 0})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="mt-4">
@@ -132,7 +151,7 @@ export default function ClientDetail() {
             <CardContent className="p-5 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Full Name</Label>
+                  <Label>שם מלא</Label>
                   <Input
                     value={editData.fullName || ""}
                     onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
@@ -140,7 +159,7 @@ export default function ClientDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>אימייל</Label>
                   <Input
                     value={editData.email || ""}
                     onChange={(e) => setEditData({ ...editData, email: e.target.value })}
@@ -148,7 +167,7 @@ export default function ClientDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Phone</Label>
+                  <Label>טלפון</Label>
                   <Input
                     value={editData.phone || ""}
                     onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
@@ -156,7 +175,7 @@ export default function ClientDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Tax ID</Label>
+                  <Label>תעודת זהות / ח.פ.</Label>
                   <Input
                     value={editData.taxId || ""}
                     onChange={(e) => setEditData({ ...editData, taxId: e.target.value })}
@@ -164,37 +183,37 @@ export default function ClientDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>סטטוס</Label>
                   <Select value={editData.status || ""} onValueChange={(v) => setEditData({ ...editData, status: v as any })}>
                     <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="lead">Lead</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="lead">ליד</SelectItem>
+                      <SelectItem value="active">פעיל</SelectItem>
+                      <SelectItem value="inactive">לא פעיל</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Process Status</Label>
+                  <Label>סטטוס תהליך</Label>
                   <Select value={editData.clientProcessStatus || ""} onValueChange={(v) => setEditData({ ...editData, clientProcessStatus: v as any })}>
                     <SelectTrigger data-testid="select-edit-process"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="lead">Lead</SelectItem>
-                      <SelectItem value="initial_process">Initial Process</SelectItem>
-                      <SelectItem value="waiting_for_documents">Waiting for Documents</SelectItem>
-                      <SelectItem value="ready_for_case_opening">Ready for Case Opening</SelectItem>
-                      <SelectItem value="in_treatment">In Treatment</SelectItem>
-                      <SelectItem value="transferred_to_accountant">Transferred to Accountant</SelectItem>
-                      <SelectItem value="ready_for_submission">Ready for Submission</SelectItem>
-                      <SelectItem value="submitted_to_tax_authority">Submitted to Tax Authority</SelectItem>
-                      <SelectItem value="paid_and_closed">Paid and Closed</SelectItem>
-                      <SelectItem value="not_relevant">Not Relevant</SelectItem>
+                      <SelectItem value="lead">ליד</SelectItem>
+                      <SelectItem value="initial_process">תהליך ראשוני</SelectItem>
+                      <SelectItem value="waiting_for_documents">ממתין למסמכים</SelectItem>
+                      <SelectItem value="ready_for_case_opening">מוכן לפתיחת תיק</SelectItem>
+                      <SelectItem value="in_treatment">בטיפול</SelectItem>
+                      <SelectItem value="transferred_to_accountant">הועבר לרואה חשבון</SelectItem>
+                      <SelectItem value="ready_for_submission">מוכן להגשה</SelectItem>
+                      <SelectItem value="submitted_to_tax_authority">הוגש לרשות המסים</SelectItem>
+                      <SelectItem value="paid_and_closed">שולם ונסגר</SelectItem>
+                      <SelectItem value="not_relevant">לא רלוונטי</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Address</Label>
+                <Label>כתובת</Label>
                 <Input
                   value={editData.address || ""}
                   onChange={(e) => setEditData({ ...editData, address: e.target.value })}
@@ -202,7 +221,7 @@ export default function ClientDetail() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Notes</Label>
+                <Label>הערות</Label>
                 <Textarea
                   value={editData.notes || ""}
                   onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
@@ -210,9 +229,9 @@ export default function ClientDetail() {
                   data-testid="input-edit-notes"
                 />
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-start">
                 <Button onClick={() => updateMutation.mutate(editData)} disabled={updateMutation.isPending} data-testid="button-save-client">
-                  <Save className="w-4 h-4 mr-2" />{updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  <Save className="w-4 h-4 ml-2" />{updateMutation.isPending ? "שומר..." : "שמור שינויים"}
                 </Button>
               </div>
             </CardContent>
@@ -226,17 +245,17 @@ export default function ClientDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Service</TableHead>
-                      <TableHead>Tax Year</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Estimate</TableHead>
+                      <TableHead>סוג שירות</TableHead>
+                      <TableHead>שנת מס</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>עדיפות</TableHead>
+                      <TableHead>הערכת החזר</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {clientCases.map(c => (
                       <TableRow key={c.id} data-testid={`row-case-${c.id}`}>
-                        <TableCell className="capitalize text-sm">{c.serviceType?.replace(/_/g, " ")}</TableCell>
+                        <TableCell className="text-sm">{serviceTypeLabels[c.serviceType || ""] || c.serviceType}</TableCell>
                         <TableCell className="text-sm">{c.taxYear || "-"}</TableCell>
                         <TableCell><StatusBadge status={c.status} /></TableCell>
                         <TableCell><StatusBadge status={c.priority} /></TableCell>
@@ -246,7 +265,7 @@ export default function ClientDetail() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className="p-8 text-center text-sm text-muted-foreground">No cases for this client</div>
+                <div className="p-8 text-center text-sm text-muted-foreground">אין תיקים ללקוח זה</div>
               )}
             </CardContent>
           </Card>
@@ -259,10 +278,10 @@ export default function ClientDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Task</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
+                      <TableHead>משימה</TableHead>
+                      <TableHead>תאריך יעד</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>עדיפות</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -277,7 +296,7 @@ export default function ClientDetail() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className="p-8 text-center text-sm text-muted-foreground">No tasks for this client</div>
+                <div className="p-8 text-center text-sm text-muted-foreground">אין משימות ללקוח זה</div>
               )}
             </CardContent>
           </Card>
@@ -290,11 +309,11 @@ export default function ClientDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Reference</TableHead>
+                      <TableHead>סכום</TableHead>
+                      <TableHead>תאריך</TableHead>
+                      <TableHead>אמצעי תשלום</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>מס׳ אסמכתא</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -302,7 +321,7 @@ export default function ClientDetail() {
                       <TableRow key={p.id} data-testid={`row-payment-${p.id}`}>
                         <TableCell className="text-sm font-medium">{formatCurrency(parseFloat(p.amount))}</TableCell>
                         <TableCell className="text-sm">{p.paymentDate || "-"}</TableCell>
-                        <TableCell className="text-sm capitalize">{p.paymentMethod?.replace(/_/g, " ")}</TableCell>
+                        <TableCell className="text-sm">{paymentMethodLabels[p.paymentMethod || ""] || p.paymentMethod}</TableCell>
                         <TableCell><StatusBadge status={p.status} /></TableCell>
                         <TableCell className="text-sm text-muted-foreground">{p.referenceNumber || "-"}</TableCell>
                       </TableRow>
@@ -310,7 +329,7 @@ export default function ClientDetail() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className="p-8 text-center text-sm text-muted-foreground">No payments for this client</div>
+                <div className="p-8 text-center text-sm text-muted-foreground">אין תשלומים ללקוח זה</div>
               )}
             </CardContent>
           </Card>

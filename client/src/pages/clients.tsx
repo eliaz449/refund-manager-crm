@@ -36,10 +36,10 @@ export default function Clients() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setDialogOpen(false);
-      toast({ title: "Client created successfully" });
+      toast({ title: "הלקוח נוצר בהצלחה" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
     },
   });
 
@@ -50,7 +50,7 @@ export default function Clients() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "Client deleted" });
+      toast({ title: "הלקוח נמחק" });
     },
   });
 
@@ -75,74 +75,74 @@ export default function Clients() {
   return (
     <div className="p-6 space-y-6 overflow-auto h-full">
       <PageHeader
-        title="Clients"
-        description={`${clients?.length || 0} total clients`}
+        title="לקוחות"
+        description={`${clients?.length || 0} לקוחות סה״כ`}
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-client"><Plus className="w-4 h-4 mr-2" />Add Client</Button>
+              <Button data-testid="button-add-client"><Plus className="w-4 h-4 ml-2" />הוסף לקוח</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>New Client</DialogTitle>
+                <DialogTitle>לקוח חדש</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Label htmlFor="fullName">שם מלא *</Label>
                   <Input id="fullName" name="fullName" required data-testid="input-client-name" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">אימייל</Label>
                     <Input id="email" name="email" type="email" data-testid="input-client-email" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone">טלפון</Label>
                     <Input id="phone" name="phone" data-testid="input-client-phone" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="clientType">Client Type</Label>
+                    <Label htmlFor="clientType">סוג לקוח</Label>
                     <Select name="clientType" defaultValue="private_individual">
                       <SelectTrigger data-testid="select-client-type"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="private_individual">Private Individual</SelectItem>
-                        <SelectItem value="self_employed">Self Employed</SelectItem>
+                        <SelectItem value="private_individual">יחיד/שכיר</SelectItem>
+                        <SelectItem value="self_employed">עצמאי</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="source">Source</Label>
+                    <Label htmlFor="source">מקור</Label>
                     <Select name="source" defaultValue="direct">
                       <SelectTrigger data-testid="select-client-source"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="referral">Referral</SelectItem>
-                        <SelectItem value="website">Website</SelectItem>
-                        <SelectItem value="social_media">Social Media</SelectItem>
-                        <SelectItem value="direct">Direct</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="referral">הפניה</SelectItem>
+                        <SelectItem value="website">אתר אינטרנט</SelectItem>
+                        <SelectItem value="social_media">רשתות חברתיות</SelectItem>
+                        <SelectItem value="direct">ישיר</SelectItem>
+                        <SelectItem value="other">אחר</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="taxId">Tax ID</Label>
+                  <Label htmlFor="taxId">תעודת זהות / ח.פ.</Label>
                   <Input id="taxId" name="taxId" data-testid="input-client-taxid" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
+                  <Label htmlFor="address">כתובת</Label>
                   <Input id="address" name="address" data-testid="input-client-address" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="notes">הערות</Label>
                   <Textarea id="notes" name="notes" rows={3} data-testid="input-client-notes" />
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <div className="flex justify-start gap-2">
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-client">
-                    {createMutation.isPending ? "Creating..." : "Create Client"}
+                    {createMutation.isPending ? "יוצר..." : "צור לקוח"}
                   </Button>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>ביטול</Button>
                 </div>
               </form>
             </DialogContent>
@@ -152,24 +152,24 @@ export default function Clients() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search clients..."
+            placeholder="חיפוש לקוחות..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pr-9"
             data-testid="input-search-clients"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[150px]" data-testid="select-filter-status">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder="סינון לפי סטטוס" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="lead">Lead</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="all">כל הסטטוסים</SelectItem>
+            <SelectItem value="lead">ליד</SelectItem>
+            <SelectItem value="active">פעיל</SelectItem>
+            <SelectItem value="inactive">לא פעיל</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -185,11 +185,11 @@ export default function Clients() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={search ? Search : Plus}
-          title={search ? "No clients match your search" : "No clients yet"}
-          description={search ? "Try adjusting your search terms" : "Create your first client to get started"}
+          title={search ? "לא נמצאו לקוחות תואמים" : "אין לקוחות עדיין"}
+          description={search ? "נסה לשנות את מילות החיפוש" : "צור את הלקוח הראשון שלך כדי להתחיל"}
           action={!search ? (
             <Button onClick={() => setDialogOpen(true)} data-testid="button-empty-add-client">
-              <Plus className="w-4 h-4 mr-2" />Add Client
+              <Plus className="w-4 h-4 ml-2" />הוסף לקוח
             </Button>
           ) : undefined}
         />
@@ -199,12 +199,12 @@ export default function Clients() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="hidden md:table-cell">Contact</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Process</TableHead>
-                  <TableHead className="hidden lg:table-cell">Source</TableHead>
+                  <TableHead>שם</TableHead>
+                  <TableHead className="hidden md:table-cell">פרטי קשר</TableHead>
+                  <TableHead>סוג</TableHead>
+                  <TableHead>סטטוס</TableHead>
+                  <TableHead className="hidden lg:table-cell">תהליך</TableHead>
+                  <TableHead className="hidden lg:table-cell">מקור</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -219,7 +219,7 @@ export default function Clients() {
                     <TableCell>
                       <div>
                         <p className="font-medium text-sm">{client.fullName}</p>
-                        <p className="text-xs text-muted-foreground">{client.taxId || "No Tax ID"}</p>
+                        <p className="text-xs text-muted-foreground">{client.taxId || "ללא ת.ז."}</p>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -237,14 +237,20 @@ export default function Clients() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs">{client.clientType === "self_employed" ? "Self Employed" : "Individual"}</span>
+                      <span className="text-xs">{client.clientType === "self_employed" ? "עצמאי" : "יחיד/שכיר"}</span>
                     </TableCell>
                     <TableCell><StatusBadge status={client.status} /></TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <StatusBadge status={client.clientProcessStatus} />
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground capitalize">{client.source?.replace(/_/g, " ")}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {client.source === "referral" ? "הפניה" :
+                         client.source === "website" ? "אתר" :
+                         client.source === "social_media" ? "רשתות חברתיות" :
+                         client.source === "direct" ? "ישיר" :
+                         client.source === "other" ? "אחר" : client.source}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -253,15 +259,15 @@ export default function Clients() {
                             <MoreHorizontal className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="start">
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
-                            <Eye className="w-4 h-4 mr-2" />View
+                            <Eye className="w-4 h-4 ml-2" />צפה
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
                           >
-                            <Trash2 className="w-4 h-4 mr-2" />Delete
+                            <Trash2 className="w-4 h-4 ml-2" />מחק
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

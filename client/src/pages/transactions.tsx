@@ -20,7 +20,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Transaction, Client } from "@shared/schema";
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
 }
 
 export default function Transactions() {
@@ -43,10 +43,10 @@ export default function Transactions() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setDialogOpen(false);
-      toast({ title: "Transaction recorded" });
+      toast({ title: "התנועה נרשמה בהצלחה" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
     },
   });
 
@@ -58,7 +58,7 @@ export default function Transactions() {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "Transaction deleted" });
+      toast({ title: "התנועה נמחקה" });
     },
   });
 
@@ -87,23 +87,23 @@ export default function Transactions() {
   return (
     <div className="p-6 space-y-6 overflow-auto h-full">
       <PageHeader
-        title="Transactions"
-        description="Income and expense tracking"
+        title="תנועות"
+        description="מעקב הכנסות והוצאות"
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-transaction"><Plus className="w-4 h-4 mr-2" />Add Transaction</Button>
+              <Button data-testid="button-add-transaction"><Plus className="w-4 h-4 ml-2" />הוסף תנועה</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>New Transaction</DialogTitle>
+                <DialogTitle>תנועה חדשה</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Client *</Label>
+                    <Label>לקוח *</Label>
                     <Select name="clientId" required>
-                      <SelectTrigger data-testid="select-tx-client"><SelectValue placeholder="Select client" /></SelectTrigger>
+                      <SelectTrigger data-testid="select-tx-client"><SelectValue placeholder="בחר לקוח" /></SelectTrigger>
                       <SelectContent>
                         {clients?.map(c => (
                           <SelectItem key={c.id} value={c.id}>{c.fullName}</SelectItem>
@@ -112,39 +112,39 @@ export default function Transactions() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Type *</Label>
+                    <Label>סוג *</Label>
                     <Select name="type" required defaultValue="income">
                       <SelectTrigger data-testid="select-tx-type"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="income">Income</SelectItem>
-                        <SelectItem value="expense">Expense</SelectItem>
+                        <SelectItem value="income">הכנסה</SelectItem>
+                        <SelectItem value="expense">הוצאה</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Amount *</Label>
+                    <Label>סכום *</Label>
                     <Input name="amount" type="number" step="0.01" required data-testid="input-tx-amount" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Date</Label>
+                    <Label>תאריך</Label>
                     <Input name="transactionDate" type="date" data-testid="input-tx-date" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Input name="category" placeholder="e.g. Bookkeeping, Tax Refund" data-testid="input-tx-category" />
+                  <Label>קטגוריה</Label>
+                  <Input name="category" placeholder="לדוגמה: הנהלת חשבונות, החזר מס" data-testid="input-tx-category" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Description</Label>
+                  <Label>תיאור</Label>
                   <Textarea name="description" rows={2} data-testid="input-tx-description" />
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <div className="flex justify-start gap-2">
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-tx">
-                    {createMutation.isPending ? "Adding..." : "Add Transaction"}
+                    {createMutation.isPending ? "מוסיף..." : "הוסף תנועה"}
                   </Button>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>ביטול</Button>
                 </div>
               </form>
             </DialogContent>
@@ -153,19 +153,19 @@ export default function Transactions() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title="Total Income" value={formatCurrency(totalIncome)} icon={TrendingUp} />
-        <StatCard title="Total Expenses" value={formatCurrency(totalExpense)} icon={TrendingDown} />
-        <StatCard title="Net Profit" value={formatCurrency(totalIncome - totalExpense)} icon={TrendingUp} />
+        <StatCard title="סה״כ הכנסות" value={formatCurrency(totalIncome)} icon={TrendingUp} />
+        <StatCard title="סה״כ הוצאות" value={formatCurrency(totalExpense)} icon={TrendingDown} />
+        <StatCard title="רווח נקי" value={formatCurrency(totalIncome - totalExpense)} icon={TrendingUp} />
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search transactions..."
+            placeholder="חיפוש תנועות..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pr-9"
             data-testid="input-search-transactions"
           />
         </div>
@@ -174,9 +174,9 @@ export default function Transactions() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="income">Income</SelectItem>
-            <SelectItem value="expense">Expense</SelectItem>
+            <SelectItem value="all">כל הסוגים</SelectItem>
+            <SelectItem value="income">הכנסה</SelectItem>
+            <SelectItem value="expense">הוצאה</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -184,26 +184,26 @@ export default function Transactions() {
       {isLoading ? (
         <Card><CardContent className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => (<Skeleton key={i} className="h-12 w-full" />))}</CardContent></Card>
       ) : filtered.length === 0 ? (
-        <EmptyState title="No transactions" description="Record your first transaction" />
+        <EmptyState title="אין תנועות" description="רשום את התנועה הראשונה" />
       ) : (
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead className="hidden md:table-cell">Category</TableHead>
-                  <TableHead className="hidden md:table-cell">Date</TableHead>
-                  <TableHead className="hidden lg:table-cell">Description</TableHead>
+                  <TableHead>לקוח</TableHead>
+                  <TableHead>סוג</TableHead>
+                  <TableHead>סכום</TableHead>
+                  <TableHead className="hidden md:table-cell">קטגוריה</TableHead>
+                  <TableHead className="hidden md:table-cell">תאריך</TableHead>
+                  <TableHead className="hidden lg:table-cell">תיאור</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map(t => (
                   <TableRow key={t.id} data-testid={`row-tx-${t.id}`}>
-                    <TableCell className="text-sm font-medium">{clientMap.get(t.clientId) || "Unknown"}</TableCell>
+                    <TableCell className="text-sm font-medium">{clientMap.get(t.clientId) || "לא ידוע"}</TableCell>
                     <TableCell><StatusBadge status={t.type} /></TableCell>
                     <TableCell className={`text-sm font-semibold ${t.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                       {t.type === "income" ? "+" : "-"}{formatCurrency(parseFloat(t.amount))}
@@ -216,9 +216,9 @@ export default function Transactions() {
                         <DropdownMenuTrigger asChild>
                           <Button size="icon" variant="ghost"><MoreHorizontal className="w-4 h-4" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="start">
                           <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
-                            <Trash2 className="w-4 h-4 mr-2" />Delete
+                            <Trash2 className="w-4 h-4 ml-2" />מחק
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

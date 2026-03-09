@@ -22,24 +22,61 @@ const statusColors: Record<string, string> = {
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400",
   income: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   expense: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  initial_process: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
+  waiting_for_documents: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  ready_for_case_opening: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
+  in_treatment: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  transferred_to_accountant: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+  ready_for_submission: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  submitted_to_tax_authority: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+  paid_and_closed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  not_relevant: "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400",
 };
 
-function formatLabel(status: string): string {
-  return status
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
+const hebrewLabels: Record<string, string> = {
+  lead: "ליד",
+  active: "פעיל",
+  inactive: "לא פעיל",
+  new: "חדש",
+  in_progress: "בטיפול",
+  completed: "הושלם",
+  not_started: "טרם התחיל",
+  submitted: "הוגש",
+  approved: "אושר",
+  rejected: "נדחה",
+  cancelled: "בוטל",
+  paid: "שולם",
+  pending: "ממתין",
+  document_collection: "איסוף מסמכים",
+  review: "בבדיקה",
+  pending_tax_authority: "ממתין לרשות המסים",
+  high: "גבוהה",
+  medium: "בינונית",
+  low: "נמוכה",
+  income: "הכנסה",
+  expense: "הוצאה",
+  initial_process: "תהליך ראשוני",
+  waiting_for_documents: "ממתין למסמכים",
+  ready_for_case_opening: "מוכן לפתיחת תיק",
+  in_treatment: "בטיפול",
+  transferred_to_accountant: "הועבר לרואה חשבון",
+  ready_for_submission: "מוכן להגשה",
+  submitted_to_tax_authority: "הוגש לרשות המסים",
+  paid_and_closed: "שולם ונסגר",
+  not_relevant: "לא רלוונטי",
+};
 
 export function StatusBadge({ status, className }: { status: string | null | undefined; className?: string }) {
   if (!status) return null;
   const colorClass = statusColors[status] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+  const label = hebrewLabels[status] || status;
   return (
     <Badge
       variant="outline"
       className={`${colorClass} border-transparent text-xs font-medium ${className || ""}`}
       data-testid={`badge-status-${status}`}
     >
-      {formatLabel(status)}
+      {label}
     </Badge>
   );
 }

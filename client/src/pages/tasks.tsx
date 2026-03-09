@@ -18,6 +18,17 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Task, Client, User } from "@shared/schema";
 
+const taskCategoryLabels: Record<string, string> = {
+  tax_return: "דוח מס",
+  document_collection: "איסוף מסמכים",
+  client_communication: "תקשורת עם לקוח",
+  vat_report: 'דוח מע"מ',
+  annual_report: "דוח שנתי",
+  bookkeeping_update: "עדכון הנהלת חשבונות",
+  consultation: "ייעוץ",
+  other: "אחר",
+};
+
 export default function Tasks() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -40,10 +51,10 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       setDialogOpen(false);
-      toast({ title: "Task created" });
+      toast({ title: "המשימה נוצרה בהצלחה" });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
     },
   });
 
@@ -55,7 +66,7 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "Task updated" });
+      toast({ title: "המשימה עודכנה" });
     },
   });
 
@@ -67,7 +78,7 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "Task deleted" });
+      toast({ title: "המשימה נמחקה" });
     },
   });
 
@@ -91,27 +102,27 @@ export default function Tasks() {
   return (
     <div className="p-6 space-y-6 overflow-auto h-full">
       <PageHeader
-        title="Tasks"
-        description={`${allTasks?.length || 0} total tasks`}
+        title="משימות"
+        description={`${allTasks?.length || 0} משימות סה״כ`}
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-task"><Plus className="w-4 h-4 mr-2" />New Task</Button>
+              <Button data-testid="button-add-task"><Plus className="w-4 h-4 ml-2" />משימה חדשה</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>New Task</DialogTitle>
+                <DialogTitle>משימה חדשה</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Task Name *</Label>
+                  <Label>שם משימה *</Label>
                   <Input name="taskName" required data-testid="input-task-name" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Client</Label>
+                    <Label>לקוח</Label>
                     <Select name="clientId">
-                      <SelectTrigger data-testid="select-task-client"><SelectValue placeholder="Select client" /></SelectTrigger>
+                      <SelectTrigger data-testid="select-task-client"><SelectValue placeholder="בחר לקוח" /></SelectTrigger>
                       <SelectContent>
                         {clients?.map(c => (
                           <SelectItem key={c.id} value={c.id}>{c.fullName}</SelectItem>
@@ -120,9 +131,9 @@ export default function Tasks() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Assigned To</Label>
+                    <Label>מטפל אחראי</Label>
                     <Select name="assignedTo">
-                      <SelectTrigger data-testid="select-task-assigned"><SelectValue placeholder="Assign to" /></SelectTrigger>
+                      <SelectTrigger data-testid="select-task-assigned"><SelectValue placeholder="בחר מטפל" /></SelectTrigger>
                       <SelectContent>
                         {usersData?.map(u => (
                           <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
@@ -133,46 +144,46 @@ export default function Tasks() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Due Date</Label>
+                    <Label>תאריך יעד</Label>
                     <Input name="dueDate" type="date" data-testid="input-task-duedate" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Priority</Label>
+                    <Label>עדיפות</Label>
                     <Select name="priority" defaultValue="medium">
                       <SelectTrigger data-testid="select-task-priority"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="low">נמוכה</SelectItem>
+                        <SelectItem value="medium">בינונית</SelectItem>
+                        <SelectItem value="high">גבוהה</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Category</Label>
+                  <Label>קטגוריה</Label>
                   <Select name="taskCategory" defaultValue="other">
                     <SelectTrigger data-testid="select-task-category"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="tax_return">Tax Return</SelectItem>
-                      <SelectItem value="document_collection">Document Collection</SelectItem>
-                      <SelectItem value="client_communication">Client Communication</SelectItem>
-                      <SelectItem value="vat_report">VAT Report</SelectItem>
-                      <SelectItem value="annual_report">Annual Report</SelectItem>
-                      <SelectItem value="bookkeeping_update">Bookkeeping Update</SelectItem>
-                      <SelectItem value="consultation">Consultation</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="tax_return">דוח מס</SelectItem>
+                      <SelectItem value="document_collection">איסוף מסמכים</SelectItem>
+                      <SelectItem value="client_communication">תקשורת עם לקוח</SelectItem>
+                      <SelectItem value="vat_report">דוח מע״מ</SelectItem>
+                      <SelectItem value="annual_report">דוח שנתי</SelectItem>
+                      <SelectItem value="bookkeeping_update">עדכון הנהלת חשבונות</SelectItem>
+                      <SelectItem value="consultation">ייעוץ</SelectItem>
+                      <SelectItem value="other">אחר</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Notes</Label>
+                  <Label>הערות</Label>
                   <Textarea name="notes" rows={3} data-testid="input-task-notes" />
                 </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <div className="flex justify-start gap-2">
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-task">
-                    {createMutation.isPending ? "Creating..." : "Create Task"}
+                    {createMutation.isPending ? "יוצר..." : "צור משימה"}
                   </Button>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>ביטול</Button>
                 </div>
               </form>
             </DialogContent>
@@ -182,12 +193,12 @@ export default function Tasks() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search tasks..."
+            placeholder="חיפוש משימות..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pr-9"
             data-testid="input-search-tasks"
           />
         </div>
@@ -196,10 +207,10 @@ export default function Tasks() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="not_started">Not Started</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="all">כל הסטטוסים</SelectItem>
+            <SelectItem value="not_started">טרם התחיל</SelectItem>
+            <SelectItem value="in_progress">בטיפול</SelectItem>
+            <SelectItem value="completed">הושלם</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -207,20 +218,20 @@ export default function Tasks() {
       {isLoading ? (
         <Card><CardContent className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => (<Skeleton key={i} className="h-12 w-full" />))}</CardContent></Card>
       ) : filtered.length === 0 ? (
-        <EmptyState title={search ? "No tasks match" : "No tasks yet"} description="Create a new task to get started" />
+        <EmptyState title={search ? "לא נמצאו משימות תואמות" : "אין משימות עדיין"} description="צור משימה חדשה כדי להתחיל" />
       ) : (
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Task</TableHead>
-                  <TableHead className="hidden md:table-cell">Client</TableHead>
-                  <TableHead className="hidden md:table-cell">Due Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead className="hidden lg:table-cell">Assigned</TableHead>
-                  <TableHead className="hidden lg:table-cell">Category</TableHead>
+                  <TableHead>משימה</TableHead>
+                  <TableHead className="hidden md:table-cell">לקוח</TableHead>
+                  <TableHead className="hidden md:table-cell">תאריך יעד</TableHead>
+                  <TableHead>סטטוס</TableHead>
+                  <TableHead>עדיפות</TableHead>
+                  <TableHead className="hidden lg:table-cell">מטפל</TableHead>
+                  <TableHead className="hidden lg:table-cell">קטגוריה</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -233,20 +244,20 @@ export default function Tasks() {
                     <TableCell><StatusBadge status={t.status} /></TableCell>
                     <TableCell><StatusBadge status={t.priority} /></TableCell>
                     <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{userMap.get(t.assignedTo || "") || "-"}</TableCell>
-                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground capitalize">{t.taskCategory?.replace(/_/g, " ")}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{taskCategoryLabels[t.taskCategory || ""] || t.taskCategory}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="icon" variant="ghost"><MoreHorizontal className="w-4 h-4" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="start">
                           {t.status !== "completed" && (
                             <DropdownMenuItem onClick={() => updateMutation.mutate({ id: t.id, data: { status: "completed" } })}>
-                              <CheckCircle2 className="w-4 h-4 mr-2" />Mark Complete
+                              <CheckCircle2 className="w-4 h-4 ml-2" />סמן כהושלם
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
-                            <Trash2 className="w-4 h-4 mr-2" />Delete
+                            <Trash2 className="w-4 h-4 ml-2" />מחק
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

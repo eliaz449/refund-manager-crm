@@ -44,7 +44,7 @@ export default function App() {
             <div className="flex flex-col flex-1 min-w-0">
               <header className="flex items-center gap-2 p-2 border-b h-12 flex-shrink-0">
                 <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <span className="text-sm font-medium text-muted-foreground">Tax & Accounting CRM</span>
+                <span className="text-sm font-medium text-muted-foreground">מערכת ניהול מס והנהלת חשבונות</span>
               </header>
               <main className="flex-1 overflow-hidden">
                 <Router />

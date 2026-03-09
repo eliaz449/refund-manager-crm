@@ -9,7 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import type { Client, Case, Task, Payment } from "@shared/schema";
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
 }
 
 const CHART_COLORS = [
@@ -36,17 +36,17 @@ export default function Dashboard() {
   const { data: paymentsData } = useQuery<Payment[]>({ queryKey: ["/api/payments"] });
 
   const clientStatusData = clients ? [
-    { name: "Lead", value: clients.filter(c => c.status === "lead").length },
-    { name: "Active", value: clients.filter(c => c.status === "active").length },
-    { name: "Inactive", value: clients.filter(c => c.status === "inactive").length },
+    { name: "ליד", value: clients.filter(c => c.status === "lead").length },
+    { name: "פעיל", value: clients.filter(c => c.status === "active").length },
+    { name: "לא פעיל", value: clients.filter(c => c.status === "inactive").length },
   ].filter(d => d.value > 0) : [];
 
   const caseStatusData = casesData ? [
-    { name: "New", count: casesData.filter(c => c.status === "new").length },
-    { name: "In Progress", count: casesData.filter(c => c.status === "in_progress").length },
-    { name: "Doc Collection", count: casesData.filter(c => c.status === "document_collection").length },
-    { name: "Submitted", count: casesData.filter(c => c.status === "submitted").length },
-    { name: "Completed", count: casesData.filter(c => c.status === "completed").length },
+    { name: "חדש", count: casesData.filter(c => c.status === "new").length },
+    { name: "בטיפול", count: casesData.filter(c => c.status === "in_progress").length },
+    { name: "איסוף מסמכים", count: casesData.filter(c => c.status === "document_collection").length },
+    { name: "הוגש", count: casesData.filter(c => c.status === "submitted").length },
+    { name: "הושלם", count: casesData.filter(c => c.status === "completed").length },
   ].filter(d => d.count > 0) : [];
 
   const recentTasks = tasksData
@@ -58,7 +58,7 @@ export default function Dashboard() {
   if (statsLoading) {
     return (
       <div className="p-6 space-y-6">
-        <PageHeader title="Dashboard" description="Overview of your firm's performance" />
+        <PageHeader title="לוח בקרה" description="סקירה כללית של ביצועי המשרד" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}><CardContent className="p-5"><Skeleton className="h-16 w-full" /></CardContent></Card>
@@ -70,16 +70,16 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6 overflow-auto h-full">
-      <PageHeader title="Dashboard" description="Overview of your firm's performance" />
+      <PageHeader title="לוח בקרה" description="סקירה כללית של ביצועי המשרד" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard title="Total Leads" value={stats?.totalLeads ?? 0} icon={UserPlus} />
-        <StatCard title="Active Clients" value={stats?.activeClients ?? 0} icon={Users} />
-        <StatCard title="Open Cases" value={stats?.openCases ?? 0} icon={Briefcase} />
-        <StatCard title="Pending Tasks" value={stats?.pendingTasks ?? 0} icon={CheckSquare} />
-        <StatCard title="Revenue" value={formatCurrency(stats?.totalRevenue ?? 0)} icon={TrendingUp} />
+        <StatCard title="סה״כ לידים" value={stats?.totalLeads ?? 0} icon={UserPlus} />
+        <StatCard title="לקוחות פעילים" value={stats?.activeClients ?? 0} icon={Users} />
+        <StatCard title="תיקים פתוחים" value={stats?.openCases ?? 0} icon={Briefcase} />
+        <StatCard title="משימות ממתינות" value={stats?.pendingTasks ?? 0} icon={CheckSquare} />
+        <StatCard title="הכנסות" value={formatCurrency(stats?.totalRevenue ?? 0)} icon={TrendingUp} />
         <StatCard
-          title="Net Profit"
+          title="רווח נקי"
           value={formatCurrency((stats?.totalRevenue ?? 0) - (stats?.totalExpenses ?? 0))}
           icon={TrendingDown}
         />
@@ -88,7 +88,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <h3 className="text-sm font-semibold" data-testid="text-chart-cases">Cases by Status</h3>
+            <h3 className="text-sm font-semibold" data-testid="text-chart-cases">תיקים לפי סטטוס</h3>
           </CardHeader>
           <CardContent className="pt-0">
             {caseStatusData.length > 0 ? (
@@ -109,14 +109,14 @@ export default function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No case data</div>
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני תיקים</div>
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <h3 className="text-sm font-semibold" data-testid="text-chart-clients">Client Segmentation</h3>
+            <h3 className="text-sm font-semibold" data-testid="text-chart-clients">פילוח לקוחות</h3>
           </CardHeader>
           <CardContent className="pt-0">
             {clientStatusData.length > 0 ? (
@@ -147,7 +147,7 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">No client data</div>
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני לקוחות</div>
             )}
           </CardContent>
         </Card>
@@ -156,7 +156,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <h3 className="text-sm font-semibold" data-testid="text-pending-tasks">Pending Tasks</h3>
+            <h3 className="text-sm font-semibold" data-testid="text-pending-tasks">משימות ממתינות</h3>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-3">
@@ -164,7 +164,7 @@ export default function Dashboard() {
                 <div key={task.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0" data-testid={`row-task-${task.id}`}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{task.taskName}</p>
-                    <p className="text-xs text-muted-foreground">{task.dueDate ? `Due: ${task.dueDate}` : "No due date"}</p>
+                    <p className="text-xs text-muted-foreground">{task.dueDate ? `תאריך יעד: ${task.dueDate}` : "ללא תאריך יעד"}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <StatusBadge status={task.priority} />
@@ -173,7 +173,7 @@ export default function Dashboard() {
                 </div>
               ))}
               {recentTasks.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No pending tasks</p>
+                <p className="text-sm text-muted-foreground text-center py-4">אין משימות ממתינות</p>
               )}
             </div>
           </CardContent>
@@ -181,7 +181,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <h3 className="text-sm font-semibold" data-testid="text-recent-payments">Recent Payments</h3>
+            <h3 className="text-sm font-semibold" data-testid="text-recent-payments">תשלומים אחרונים</h3>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-3">
@@ -189,7 +189,7 @@ export default function Dashboard() {
                 <div key={payment.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0" data-testid={`row-payment-${payment.id}`}>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{formatCurrency(parseFloat(payment.amount))}</p>
-                    <p className="text-xs text-muted-foreground">{payment.paymentDate || "No date"}</p>
+                    <p className="text-xs text-muted-foreground">{payment.paymentDate || "ללא תאריך"}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <StatusBadge status={payment.status} />
@@ -197,7 +197,7 @@ export default function Dashboard() {
                 </div>
               ))}
               {recentPayments.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No payments yet</p>
+                <p className="text-sm text-muted-foreground text-center py-4">אין תשלומים עדיין</p>
               )}
             </div>
           </CardContent>
