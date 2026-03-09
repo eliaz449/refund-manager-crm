@@ -1,18 +1,173 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, numeric, boolean, timestamp, date, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const userRoleEnum = pgEnum("user_role", ["admin", "user", "accountant"]);
+export const clientTypeEnum = pgEnum("client_type", ["private_individual", "self_employed"]);
+export const clientStatusEnum = pgEnum("client_status", ["lead", "active", "inactive"]);
+export const clientProcessStatusEnum = pgEnum("client_process_status", [
+  "lead", "initial_process", "waiting_for_documents", "ready_for_case_opening",
+  "in_treatment", "transferred_to_accountant", "ready_for_submission",
+  "submitted_to_tax_authority", "paid_and_closed", "not_relevant"
+]);
+export const leadStatusEnum = pgEnum("lead_status", [
+  "answered", "not_answered_1", "not_answered_2", "closed_deal", "paid_opening_fee", "not_relevant"
+]);
+export const sourceEnum = pgEnum("source", ["referral", "website", "social_media", "direct", "other"]);
+export const formTypeEnum = pgEnum("form_type", ["135", "1301", "other"]);
+export const serviceTypeEnum = pgEnum("service_type", [
+  "tax_refund", "bookkeeping", "annual_report", "quarterly_report",
+  "vat_report", "business_registration", "consultation", "other"
+]);
+export const approvalStatusEnum = pgEnum("approval_status", ["in_progress", "submitted", "approved", "rejected"]);
+export const caseStatusEnum = pgEnum("case_status", [
+  "new", "document_collection", "in_progress", "review",
+  "submitted", "pending_tax_authority", "completed", "cancelled"
+]);
+export const priorityEnum = pgEnum("priority", ["low", "medium", "high"]);
+export const taskStatusEnum = pgEnum("task_status", ["not_started", "in_progress", "completed"]);
+export const taskCategoryEnum = pgEnum("task_category", [
+  "tax_return", "document_collection", "client_communication", "vat_report",
+  "monthly_report", "quarterly_report", "annual_report", "advance_tax_payment",
+  "social_security_payment", "bookkeeping_update", "invoice_preparation",
+  "expense_tracking", "business_registration", "license_renewal",
+  "audit_preparation", "consultation", "other"
+]);
+export const recurrenceTypeEnum = pgEnum("recurrence_type", ["none", "monthly", "quarterly", "yearly"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["credit_card", "bank_transfer", "check", "cash", "other"]);
+export const paymentStatusEnum = pgEnum("payment_status", ["paid", "pending", "cancelled"]);
+export const communicationTypeEnum = pgEnum("communication_type", ["phone", "email", "whatsapp"]);
+export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  fullName: text("full_name").notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: userRoleEnum("role").notNull().default("user"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fullName: text("full_name").notNull(),
+  clientType: clientTypeEnum("client_type").notNull().default("private_individual"),
+  phone: text("phone"),
+  email: text("email"),
+  taxId: text("tax_id"),
+  address: text("address"),
+  status: clientStatusEnum("status").notNull().default("lead"),
+  clientProcessStatus: clientProcessStatusEnum("client_process_status").default("lead"),
+  leadStatus: leadStatusEnum("lead_status").default("answered"),
+  source: sourceEnum("source").default("direct"),
+  notes: text("notes"),
+  communicationLog: text("communication_log"),
+  onboardingDate: date("onboarding_date"),
+  lastCallDate: date("last_call_date"),
+  assignedAccountantId: varchar("assigned_accountant_id"),
+  clientDeclarationSigned: boolean("client_declaration_signed").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: text("created_by"),
 });
+
+export const cases = pgTable("cases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  taxYear: integer("tax_year"),
+  formType: formTypeEnum("form_type").default("other"),
+  serviceType: serviceTypeEnum("service_type").notNull().default("tax_refund"),
+  refundEstimate: numeric("refund_estimate"),
+  submissionDate: date("submission_date"),
+  openingDate: date("opening_date"),
+  approvalStatus: approvalStatusEnum("approval_status").default("in_progress"),
+  status: caseStatusEnum("status").notNull().default("new"),
+  priority: priorityEnum("priority").default("medium"),
+  assignedTo: varchar("assigned_to"),
+  notes: text("notes"),
+  totalPaid: numeric("total_paid"),
+  hourlyRate: numeric("hourly_rate"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: text("created_by"),
+});
+
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskName: text("task_name").notNull(),
+  clientId: varchar("client_id"),
+  caseId: varchar("case_id"),
+  assignedTo: varchar("assigned_to"),
+  dueDate: date("due_date"),
+  status: taskStatusEnum("status").notNull().default("not_started"),
+  priority: priorityEnum("priority").default("medium"),
+  notes: text("notes"),
+  taskCategory: taskCategoryEnum("task_category").default("other"),
+  recurrenceType: recurrenceTypeEnum("recurrence_type").default("none"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: text("created_by"),
+});
+
+export const payments = pgTable("payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  caseId: varchar("case_id"),
+  paymentDate: date("payment_date"),
+  amount: numeric("amount").notNull(),
+  paymentMethod: paymentMethodEnum("payment_method").default("bank_transfer"),
+  status: paymentStatusEnum("payment_status").notNull().default("pending"),
+  referenceNumber: text("reference_number"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: text("created_by"),
+});
+
+export const communicationLogs = pgTable("communication_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: communicationTypeEnum("type").notNull(),
+  date: timestamp("date").defaultNow(),
+  content: text("content"),
+  handlerId: varchar("handler_id"),
+  clientId: varchar("client_id").notNull(),
+  followUpRequired: boolean("follow_up_required").default(false),
+  followUpDate: date("follow_up_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const transactions = pgTable("transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  caseId: varchar("case_id"),
+  transactionDate: date("transaction_date"),
+  type: transactionTypeEnum("type").notNull(),
+  category: text("category"),
+  description: text("description"),
+  amount: numeric("amount").notNull(),
+  currency: text("currency").default("ILS"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCaseSchema = createInsertSchema(cases).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
+export const insertCommunicationLogSchema = createInsertSchema(communicationLogs).omit({ id: true, createdAt: true });
+export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type Client = typeof clients.$inferSelect;
+export type InsertCase = z.infer<typeof insertCaseSchema>;
+export type Case = typeof cases.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+export type Task = typeof tasks.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type Payment = typeof payments.$inferSelect;
+export type InsertCommunicationLog = z.infer<typeof insertCommunicationLogSchema>;
+export type CommunicationLog = typeof communicationLogs.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Transaction = typeof transactions.$inferSelect;
