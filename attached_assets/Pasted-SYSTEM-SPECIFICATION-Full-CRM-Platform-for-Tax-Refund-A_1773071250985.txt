@@ -1,0 +1,824 @@
+SYSTEM SPECIFICATION
+Full CRM Platform for Tax Refund & Accounting Firm
+
+You are a senior full-stack engineer.
+
+Your task is to build a production-ready CRM platform for managing a tax refund and accounting firm.
+
+This system replaces an existing CRM that was previously built in Base44.
+
+The goal is to recreate the system with stronger architecture, backend automation, webhook capabilities, and long-term scalability.
+
+The system must be production ready, modular, and designed for future SaaS expansion.
+
+TECH STACK
+
+Frontend
+
+React
+
+Vite
+
+TypeScript
+
+TailwindCSS
+
+React Query / TanStack Query
+
+React Router
+
+Chart.js or Recharts for dashboards
+
+Backend
+
+Node.js
+
+Express.js
+
+TypeScript
+
+Database
+
+PostgreSQL
+
+ORM
+
+Prisma
+
+Authentication
+
+JWT based authentication
+
+bcrypt password hashing
+
+File Storage
+
+Local storage for development
+
+S3 compatible abstraction layer for future upgrade
+
+Scheduling / Automation
+
+Node Cron
+
+Validation
+
+Zod or Joi schema validation
+
+API Structure
+
+REST API
+
+Logging
+
+Winston or Pino
+
+Error handling
+
+centralized error middleware
+
+PROJECT ARCHITECTURE
+
+The project must follow a clean modular architecture.
+
+Project structure:
+
+server
+controllers
+routes
+services
+repositories
+middleware
+validators
+cron
+config
+database
+
+frontend
+components
+pages
+hooks
+api
+layouts
+forms
+tables
+charts
+
+shared
+types
+constants
+utils
+
+CORE DOMAIN ENTITIES
+
+Each entity must include the base fields:
+
+id (UUID)
+created_date (timestamp)
+updated_date (timestamp)
+created_by (email)
+
+DATABASE SCHEMA
+User
+
+fields
+
+full_name (string)
+
+email (string unique)
+
+password_hash (string)
+
+role enum
+
+admin
+user
+accountant
+
+Client
+
+fields
+
+full_name string required
+
+client_type enum
+
+private_individual
+self_employed
+
+phone string
+
+email string
+
+tax_id string
+
+address string
+
+status enum
+
+lead
+active
+inactive
+
+client_process_status enum
+
+lead
+initial_process
+waiting_for_documents
+ready_for_case_opening
+in_treatment
+transferred_to_accountant
+ready_for_submission
+submitted_to_tax_authority
+paid_and_closed
+not_relevant
+
+lead_status enum
+
+answered
+not_answered_1
+not_answered_2
+closed_deal
+paid_opening_fee
+not_relevant
+
+source enum
+
+referral
+website
+social_media
+direct
+other
+
+notes text
+
+communication_log text
+
+onboarding_date date
+
+last_call_date date
+
+assigned_accountant_id relation User
+
+client_declaration_signed boolean
+
+relations
+
+Client → Cases
+
+Client → Tasks
+
+Client → Documents
+
+Client → Payments
+
+Client → CommunicationLog
+
+Client → Transactions
+
+Client → Reminders
+
+Case
+
+fields
+
+client_id relation Client
+
+tax_year integer
+
+form_type enum
+
+135
+1301
+other
+
+service_type enum
+
+tax_refund
+bookkeeping
+annual_report
+quarterly_report
+vat_report
+business_registration
+consultation
+other
+
+refund_estimate number
+
+submission_date date
+
+opening_date date
+
+approval_status enum
+
+in_progress
+submitted
+approved
+rejected
+
+status enum
+
+new
+document_collection
+in_progress
+review
+submitted
+pending_tax_authority
+completed
+cancelled
+
+priority enum
+
+low
+medium
+high
+
+assigned_to relation User
+
+notes text
+
+total_paid number
+
+hourly_rate number
+
+relations
+
+Case → Tasks
+
+Case → Documents
+
+Case → Payments
+
+Case → TimeEntries
+
+Task
+
+fields
+
+task_name string
+
+client_id relation Client
+
+case_id relation Case optional
+
+assigned_to relation User
+
+due_date date
+
+status enum
+
+not_started
+in_progress
+completed
+
+priority enum
+
+low
+medium
+high
+
+notes text
+
+task_category enum
+
+tax_return
+document_collection
+client_communication
+vat_report
+monthly_report
+quarterly_report
+annual_report
+advance_tax_payment
+social_security_payment
+bookkeeping_update
+invoice_preparation
+expense_tracking
+business_registration
+license_renewal
+audit_preparation
+consultation
+other
+
+recurrence_type enum
+
+none
+monthly
+quarterly
+yearly
+
+recurrence_day integer
+
+original_task_id relation Task
+
+is_auto_generated boolean
+
+TimeEntry
+
+fields
+
+case_id relation Case
+
+task_id relation Task optional
+
+employee_email relation User
+
+date date
+
+hours_spent number
+
+description text
+
+activity_type enum
+
+document_review
+client_communication
+tax_authority_communication
+case_analysis
+form_preparation
+internal_meeting
+other
+
+Document
+
+fields
+
+document_name string
+
+document_type enum
+
+pdf
+image
+excel
+word
+other
+
+client_id relation Client
+
+case_id relation Case
+
+upload_date date
+
+uploaded_by relation User
+
+file_url string
+
+category enum
+
+tax_return
+id_proof
+income_statement
+receipt
+invoice
+correspondence
+form
+vat_report
+profit_loss_statement
+tax_withholding_certificate
+bookkeeping_approval
+business_license
+insurance_documents
+bank_statements
+expense_receipt
+contract
+other
+
+month_year string
+
+is_recurring_document boolean
+
+Payment
+
+fields
+
+client_id relation Client
+
+case_id relation Case
+
+payment_date date
+
+amount number
+
+payment_method enum
+
+credit_card
+bank_transfer
+check
+cash
+other
+
+status enum
+
+paid
+pending
+cancelled
+
+reference_number string
+
+notes text
+
+Reminder
+
+fields
+
+content text
+
+reminder_datetime datetime
+
+client_id relation Client
+
+user_email relation User
+
+is_active boolean
+
+is_completed boolean
+
+reminder_type enum
+
+manual
+recurring_vat
+recurring_tax
+recurring_social_security
+other
+
+recurrence_pattern enum
+
+none
+monthly
+quarterly
+yearly
+
+next_reminder_date datetime
+
+CommunicationLog
+
+fields
+
+type enum
+
+phone
+email
+whatsapp
+
+date datetime
+
+content text
+
+handler_id relation User
+
+client_id relation Client
+
+follow_up_required boolean
+
+follow_up_date date
+
+Transaction
+
+fields
+
+client_id relation Client
+
+case_id relation Case optional
+
+transaction_date date
+
+type enum
+
+income
+expense
+
+category string
+
+description text
+
+amount number
+
+currency string
+
+document_url string
+
+TaskTemplate
+
+fields
+
+template_name string
+
+task_category enum
+
+vat_report
+quarterly_report
+annual_report
+advance_tax_payment
+social_security_payment
+bookkeeping_update
+license_renewal
+other
+
+client_type enum
+
+private_individual
+self_employed
+both
+
+recurrence_type enum
+
+monthly
+quarterly
+yearly
+
+due_day integer
+
+priority enum
+
+low
+medium
+high
+
+advance_days integer
+
+description_template text
+
+is_active boolean
+
+applicable_months integer array
+
+AutoTask
+
+fields
+
+client_id relation Client
+
+template_id relation TaskTemplate
+
+task_id relation Task
+
+due_date date
+
+status enum
+
+pending
+created
+completed
+skipped
+
+created_date date
+
+month_year string
+
+auto_generated boolean
+
+SYSTEM PAGES
+
+Dashboard
+Clients
+ClientProfile
+Cases
+Tasks
+Transactions
+Payments
+Reports
+ProfitabilityReport
+TaskAutomation
+PartnerProgressDashboard
+ClientPortal
+TimeTracking
+
+CORE FEATURES
+
+Client management
+
+lead tracking
+
+case lifecycle management
+
+task management
+
+document storage
+
+payments tracking
+
+time tracking
+
+transaction ledger
+
+communication history
+
+reminders
+
+automation engine
+
+reporting dashboards
+
+AUTOMATION ENGINE
+
+Create a background job using cron.
+
+Runs every hour.
+
+Logic:
+
+Fetch active TaskTemplates.
+
+Fetch all active self_employed clients.
+
+For each template and client:
+
+Check if AutoTask exists for the current period.
+
+If not:
+
+Calculate due date.
+
+If current date within advance_days window:
+
+Create AutoTask
+
+Create Task
+
+Generate description using description_template with dynamic variables.
+
+Assign task to
+
+client.assigned_accountant_id
+
+or fallback admin.
+
+REMINDER SYSTEM
+
+Run check every minute.
+
+If reminder_datetime reached
+
+trigger notification
+
+If recurrence_pattern exists
+
+generate next reminder
+
+mark previous completed
+
+WEBHOOK
+
+Create endpoint
+
+POST /api/webhooks/landy
+
+Purpose
+
+Receive lead data from external lead capture system.
+
+Payload JSON example
+
+name
+phone
+email
+source
+
+Logic
+
+Create Client
+
+status = lead
+
+store data
+
+Require header
+
+x-webhook-secret
+
+validate token
+
+DASHBOARD
+
+Display
+
+number of leads
+
+active clients
+
+open cases
+
+total revenue
+
+net profit
+
+Charts
+
+monthly revenue
+
+income vs expenses
+
+client segmentation
+
+SECURITY
+
+JWT authentication
+
+password hashing
+
+request validation
+
+RBAC roles
+
+admin
+
+user
+
+accountant
+
+centralized error handling
+
+DEVELOPMENT PHASES
+
+Phase 1
+
+Database schema
+
+Prisma migrations
+
+API endpoints
+
+Authentication
+
+Phase 2
+
+Core CRUD interfaces
+
+Client
+
+Case
+
+Task
+
+Payment
+
+Document
+
+Phase 3
+
+Automation engine
+
+Reminder system
+
+Dashboard analytics
+
+Webhook integration
+
+Phase 4
+
+Performance optimization
+
+logging
+
+error monitoring
+
+production deployment
+
+IMPORTANT
+
+The system must be written in a way that allows future transformation into a multi-tenant SaaS platform for accounting firms.
+
+Code must be clean, modular, and documented.
+
+Avoid tight coupling between modules.
+
+Ensure scalability.
