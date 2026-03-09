@@ -47,8 +47,15 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 - **Communication Logs** - Client communication history
 - **Transactions** - Income/expense ledger
 
+## Health & Deployment
+- `GET /api/health` returns `{ "status": "ok" }` — lightweight health endpoint
+- `server/static.ts` gracefully handles missing `dist/public` directory (returns fallback HTML instead of throwing)
+- Production build: `npm run build` → `dist/index.cjs` (server) + `dist/public/` (client)
+- Production start: `NODE_ENV=production node dist/index.cjs`
+
 ## API Endpoints
 All endpoints prefixed with `/api/`:
+- `GET /api/health` - Health check endpoint
 - `GET/POST /clients`, `GET/PATCH/DELETE /clients/:id`
 - `GET/POST /cases`, `GET/PATCH/DELETE /cases/:id`
 - `GET/POST /tasks`, `GET/PATCH/DELETE /tasks/:id`

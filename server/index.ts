@@ -60,6 +60,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok" });
+  });
+
   const { seedDatabase } = await import("./seed");
   await seedDatabase().catch(err => console.error("Seed error:", err));
   await registerRoutes(httpServer, app);
