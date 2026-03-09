@@ -57,6 +57,19 @@ All endpoints prefixed with `/api/`:
 - `GET/POST /communications`
 - `GET /dashboard/stats`
 - `GET /users`
+- `POST /webhooks/landy` - Landy lead intake webhook
+
+## Landy Webhook Integration
+- **Route**: `POST /api/webhooks/landy` (in `server/routes.ts`)
+- **Auth**: `x-webhook-secret` header validated against `LANDY_WEBHOOK_SECRET` env var
+- **Required fields**: `full_name`, `phone`, `email`, `source`
+- **Optional fields**: `notes`, `address`, `tax_id`
+- **Dedup**: Checks for existing client by phone or email before creating (uses `findClientByPhoneOrEmail` in storage)
+- **New lead**: Creates client with `status: "lead"`, `clientProcessStatus: "lead"`
+- **Existing lead**: Updates the existing record instead of duplicating
+- **Responses**: 200 (success), 401 (bad secret), 400 (missing fields), 500 (server error)
+- **Logging**: Full payload logged to console with `[Landy Webhook]` prefix
+- **Extensibility**: TODO hooks for auto-creating Task or CommunicationLog on new/returning leads
 
 ## Key Features
 - Dashboard with KPI stats and charts (Recharts)
@@ -66,4 +79,5 @@ All endpoints prefixed with `/api/`:
 - Task management with priority, category, and completion
 - Payment recording and tracking
 - Transaction ledger with income/expense tracking
+- Landy webhook for automatic lead intake with dedup
 - Seed data with 5 realistic clients, 5 cases, 6 tasks, 5 payments, 6 transactions

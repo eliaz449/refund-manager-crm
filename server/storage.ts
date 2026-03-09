@@ -1,4 +1,4 @@
-import { eq, desc, sql, and, count } from "drizzle-orm";
+import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, clients, cases, tasks, payments, communicationLogs, transactions,
@@ -19,6 +19,7 @@ export interface IStorage {
 
   getClients(): Promise<Client[]>;
   getClient(id: string): Promise<Client | undefined>;
+  findClientByPhoneOrEmail(phone?: string, email?: string): Promise<Client | undefined>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: string, client: Partial<InsertClient>): Promise<Client | undefined>;
   deleteClient(id: string): Promise<void>;
@@ -88,6 +89,15 @@ export class DatabaseStorage implements IStorage {
 
   async getClient(id: string): Promise<Client | undefined> {
     const [client] = await db.select().from(clients).where(eq(clients.id, id));
+    return client;
+  }
+
+  async findClientByPhoneOrEmail(phone?: string, email?: string): Promise<Client | undefined> {
+    const conditions = [];
+    if (phone) conditions.push(eq(clients.phone, phone));
+    if (email) conditions.push(eq(clients.email, email));
+    if (conditions.length === 0) return undefined;
+    const [client] = await db.select().from(clients).where(or(...conditions)).limit(1);
     return client;
   }
 
