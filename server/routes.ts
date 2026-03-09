@@ -198,67 +198,81 @@ export async function registerRoutes(
   });
 
   // ─── Landy Webhook ─────────────────────────────────────────────
-  const landyPayloadSchema = z.object({
-    full_name: z.string().min(1, "full_name is required"),
-    phone: z.string().min(1, "phone is required"),
-    email: z.string().email("invalid email format"),
-    source: z.string().min(1, "source is required"),
-    notes: z.string().optional(),
-    address: z.string().optional(),
-    tax_id: z.string().optional(),
-  });
-
   const VALID_SOURCES = ["referral", "website", "social_media", "direct", "other"] as const;
 
   app.post("/api/webhooks/landy", async (req, res) => {
     const receivedAt = new Date().toISOString();
+    const body = req.body || {};
+    const formData = body.form_data || body.formData || {};
 
     console.log(`\n========== [Landy Webhook DEBUG MODE] ==========`);
     console.log(`[Landy Webhook] Incoming request at ${receivedAt}`);
     console.log(`[Landy Webhook] ALL HEADERS:`, JSON.stringify(req.headers, null, 2));
     console.log(`[Landy Webhook] x-landy-signature raw value: "${req.headers["x-landy-signature"]}"`);
-    console.log(`[Landy Webhook] x-landy-signature type: ${typeof req.headers["x-landy-signature"]}`);
     console.log(`[Landy Webhook] x-landy-signature length: ${typeof req.headers["x-landy-signature"] === "string" ? req.headers["x-landy-signature"].length : "N/A"}`);
-    console.log(`[Landy Webhook] FULL BODY:`, JSON.stringify(req.body, null, 2));
+    console.log(`[Landy Webhook] FULL BODY:`, JSON.stringify(body, null, 2));
+    console.log(`[Landy Webhook] FULL BODY KEYS:`, Object.keys(body));
+    console.log(`[Landy Webhook] form_data KEYS:`, Object.keys(formData));
     console.log(`[Landy Webhook] Content-Type: ${req.headers["content-type"]}`);
-    console.log(`[Landy Webhook] LANDY_WEBHOOK_SECRET env length: ${process.env.LANDY_WEBHOOK_SECRET ? process.env.LANDY_WEBHOOK_SECRET.length : "NOT SET"}`);
-    console.log(`========== [END DEBUG] ==========\n`);
 
-    // >>> TEMPORARY: Auth bypassed for debug — always return 200 <<<
+    const full_name = body.full_name || body.name || body.fullName || formData.full_name || formData.name || formData.fullName || "";
+    const phone = body.phone || body.telephone || body.tel || formData.phone || formData.telephone || formData.tel || "";
+    const email = body.email || body.mail || formData.email || formData.mail || "";
+    const rawSource = body.source || body.page_name || body.pageName || body.utm_source || formData.source || formData.page_name || "landy";
+    const notes = body.notes || body.message || body.comment || formData.notes || formData.message || formData.comment || "";
+    const address = body.address || formData.address || "";
+    const tax_id = body.tax_id || body.taxId || formData.tax_id || formData.taxId || "";
 
-    const parsed = landyPayloadSchema.safeParse(req.body);
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors;
-      console.warn(`[Landy Webhook] Validation failed:`, fieldErrors);
-      return res.status(400).json({
+    console.log(`[Landy Webhook] MAPPED FIELDS:`);
+    console.log(`  full_name = "${full_name}"`);
+    console.log(`  phone     = "${phone}"`);
+    console.log(`  email     = "${email}"`);
+    console.log(`  source    = "${rawSource}"`);
+    console.log(`  notes     = "${notes}"`);
+    console.log(`  address   = "${address}"`);
+    console.log(`  tax_id    = "${tax_id}"`);
+
+    if (!full_name || !phone) {
+      const missing = [];
+      if (!full_name) missing.push("full_name (tried: body.full_name, body.name, body.fullName, form_data.full_name, form_data.name)");
+      if (!phone) missing.push("phone (tried: body.phone, body.telephone, body.tel, form_data.phone, form_data.telephone)");
+      console.warn(`[Landy Webhook] MISSING REQUIRED FIELDS: ${missing.join(", ")}`);
+      console.log(`========== [END DEBUG] ==========\n`);
+      return res.status(200).json({
         success: false,
-        error: "Missing or invalid required fields",
-        details: fieldErrors,
+        error: "Missing required fields",
+        missing,
+        receivedAt,
+        debug_body_keys: Object.keys(body),
+        debug_form_data_keys: Object.keys(formData),
       });
     }
 
-    const { full_name, phone, email, source, notes, address, tax_id } = parsed.data;
+    const source: string = VALID_SOURCES.includes(rawSource as any) ? rawSource : "other";
+
+    const clientData = {
+      fullName: full_name,
+      phone,
+      email: email || undefined,
+      source: source as any,
+      status: "lead" as const,
+      clientProcessStatus: "lead" as const,
+      ...(notes && { notes }),
+      ...(address && { address }),
+      ...(tax_id && { taxId: tax_id }),
+    };
+
+    console.log(`[Landy Webhook] CLIENT DATA TO SAVE:`, JSON.stringify(clientData, null, 2));
 
     try {
-      const existing = await storage.findClientByPhoneOrEmail(phone, email);
+      const existing = await storage.findClientByPhoneOrEmail(phone, email || "");
+      console.log(`[Landy Webhook] EXISTING CLIENT LOOKUP: ${existing ? `found id=${existing.id}` : "not found"}`);
 
       if (existing) {
-        const updated = await storage.updateClient(existing.id, {
-          fullName: full_name,
-          phone,
-          email,
-          source: VALID_SOURCES.includes(source as any) ? (source as any) : "other",
-          ...(notes && { notes }),
-          ...(address && { address }),
-          ...(tax_id && { taxId: tax_id }),
-        });
-
-        console.log(`[Landy Webhook] Updated existing client: ${existing.id} (${full_name})`);
-
-        // TODO: Optionally create a Task or CommunicationLog for follow-up on returning lead
-        // await storage.createTask({ taskName: `Follow up returning lead: ${full_name}`, clientId: existing.id, ... });
-        // await storage.createCommunicationLog({ clientId: existing.id, type: "webhook", content: `Lead re-submitted via Landy`, ... });
-
+        const { status, clientProcessStatus, ...updateData } = clientData;
+        await storage.updateClient(existing.id, updateData);
+        console.log(`[Landy Webhook] RESULT: UPDATED existing client id=${existing.id} name="${full_name}"`);
+        console.log(`========== [END DEBUG] ==========\n`);
         return res.status(200).json({
           success: true,
           action: "updated",
@@ -268,23 +282,9 @@ export async function registerRoutes(
         });
       }
 
-      const newClient = await storage.createClient({
-        fullName: full_name,
-        phone,
-        email,
-        source: VALID_SOURCES.includes(source as any) ? (source as any) : "other",
-        status: "lead",
-        clientProcessStatus: "lead",
-        ...(notes && { notes }),
-        ...(address && { address }),
-        ...(tax_id && { taxId: tax_id }),
-      });
-
-      console.log(`[Landy Webhook] Created new client: ${newClient.id} (${full_name})`);
-
-      // TODO: Auto-create Task for new lead follow-up
-      // await storage.createTask({ taskName: `Contact new lead: ${full_name}`, clientId: newClient.id, priority: "high", ... });
-
+      const newClient = await storage.createClient(clientData);
+      console.log(`[Landy Webhook] RESULT: CREATED new client id=${newClient.id} name="${full_name}"`);
+      console.log(`========== [END DEBUG] ==========\n`);
       return res.status(200).json({
         success: true,
         action: "created",
@@ -293,10 +293,14 @@ export async function registerRoutes(
         receivedAt,
       });
     } catch (err: any) {
-      console.error(`[Landy Webhook] Internal error:`, err);
-      return res.status(500).json({
+      console.error(`[Landy Webhook] DATABASE ERROR:`, err.message || err);
+      console.error(`[Landy Webhook] FULL ERROR:`, JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+      console.log(`========== [END DEBUG] ==========\n`);
+      return res.status(200).json({
         success: false,
         error: "Internal server error",
+        debug_error: err.message,
+        receivedAt,
       });
     }
   });
