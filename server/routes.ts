@@ -216,7 +216,7 @@ export async function registerRoutes(
     console.log(`[Landy Webhook] Incoming request at ${receivedAt}`);
     console.log(`[Landy Webhook] Payload:`, JSON.stringify(req.body, null, 2));
 
-    const secret = req.headers["x-webhook-secret"];
+    const secret = req.headers["x-landy-signature"];
     const expectedSecret = process.env.LANDY_WEBHOOK_SECRET;
 
     if (!expectedSecret || secret !== expectedSecret) {

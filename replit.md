@@ -61,7 +61,7 @@ All endpoints prefixed with `/api/`:
 
 ## Landy Webhook Integration
 - **Route**: `POST /api/webhooks/landy` (in `server/routes.ts`)
-- **Auth**: `x-webhook-secret` header validated against `LANDY_WEBHOOK_SECRET` env var
+- **Auth**: `X-Landy-Signature` header validated against `LANDY_WEBHOOK_SECRET` env var
 - **Required fields**: `full_name`, `phone`, `email`, `source`
 - **Optional fields**: `notes`, `address`, `tax_id`
 - **Dedup**: Checks for existing client by phone or email before creating (uses `findClientByPhoneOrEmail` in storage)
