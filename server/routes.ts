@@ -216,11 +216,23 @@ export async function registerRoutes(
     console.log(`[Landy Webhook] Incoming request at ${receivedAt}`);
     console.log(`[Landy Webhook] Payload:`, JSON.stringify(req.body, null, 2));
 
-    const secret = req.headers["x-landy-signature"];
-    const expectedSecret = process.env.LANDY_WEBHOOK_SECRET;
+    const rawHeader = req.headers["x-landy-signature"];
+    const secret = typeof rawHeader === "string" ? rawHeader.trim() : rawHeader;
+    const expectedSecret = process.env.LANDY_WEBHOOK_SECRET?.trim();
+
+    console.log(`[Landy Webhook] DEBUG — x-landy-signature header present: ${rawHeader !== undefined}`);
+    console.log(`[Landy Webhook] DEBUG — header value length: ${typeof rawHeader === "string" ? rawHeader.length : "N/A"}`);
+    console.log(`[Landy Webhook] DEBUG — LANDY_WEBHOOK_SECRET env length: ${process.env.LANDY_WEBHOOK_SECRET ? process.env.LANDY_WEBHOOK_SECRET.length : "NOT SET"}`);
+    console.log(`[Landy Webhook] DEBUG — after trim — header length: ${typeof secret === "string" ? secret.length : "N/A"}, env length: ${expectedSecret ? expectedSecret.length : "NOT SET"}`);
+    console.log(`[Landy Webhook] DEBUG — match result: ${secret === expectedSecret}`);
 
     if (!expectedSecret || secret !== expectedSecret) {
-      console.warn(`[Landy Webhook] Authentication failed — invalid or missing secret`);
+      const reason = !expectedSecret
+        ? "LANDY_WEBHOOK_SECRET env var is not set"
+        : rawHeader === undefined
+          ? "x-landy-signature header is missing from request"
+          : "header value does not match env secret";
+      console.warn(`[Landy Webhook] Authentication failed — ${reason}`);
       return res.status(401).json({
         success: false,
         error: "Unauthorized — invalid webhook secret",
