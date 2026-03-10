@@ -63,12 +63,13 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 
 ## Database Entities
 - **Users** - Admin, User, Accountant roles
-- **Clients** - Full client lifecycle (lead → active → inactive) with process tracking
+- **Clients** - Full client lifecycle (lead → active → inactive) with process tracking, pricing (percentage/fixed/hourly), recommendedBy field
 - **Cases** - Tax refund cases, bookkeeping, reports with status tracking
 - **Tasks** - Task management with categories, priorities, assignments
 - **Payments** - Payment tracking with methods and status
 - **Communication Logs** - Client communication history
 - **Transactions** - Income/expense ledger
+- **Client Notes** - Timestamped notes history per client (append-only log with edit/delete)
 - **Password Reset Tokens** - Reset token storage with expiry and used flag
 
 ## Health & Deployment
@@ -87,6 +88,7 @@ All endpoints prefixed with `/api/`:
 - `GET/POST /payments`, `GET/PATCH/DELETE /payments/:id`
 - `GET/POST /transactions`, `DELETE /transactions/:id`
 - `GET/POST /communications`
+- `GET/POST /clients/:clientId/notes`, `PATCH/DELETE /notes/:id`
 - `GET /dashboard/stats`
 - `GET /users`
 - `POST /webhooks/landy` - Landy lead intake webhook (no session auth — uses signature)
@@ -113,7 +115,11 @@ All endpoints prefixed with `/api/`:
 - Dashboard with KPI stats and charts (Recharts)
 - Secure authentication with session-based login for two admin users
 - Client management with full CRUD, search, filters
-- Client detail page with tabs (Details, Cases, Tasks, Payments)
+- Client detail page with unified scroll layout (Details, Notes History, Cases, Tasks, Payments)
+- Inline case/task/payment creation from client detail page
+- Notes history per client with add/edit/delete
+- Client pricing fields (percentage, fixed, hourly)
+- "Recommended" source option with recommender name field
 - Case management with service types and status tracking
 - Task management with priority, category, and completion
 - Payment recording and tracking

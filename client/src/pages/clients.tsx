@@ -24,6 +24,7 @@ export default function Clients() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [newClientSource, setNewClientSource] = useState("direct");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -115,18 +116,25 @@ export default function Clients() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="source">מקור</Label>
-                    <Select name="source" defaultValue="direct">
+                    <Select name="source" defaultValue="direct" value={newClientSource} onValueChange={setNewClientSource}>
                       <SelectTrigger data-testid="select-client-source"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="referral">הפניה</SelectItem>
                         <SelectItem value="website">אתר אינטרנט</SelectItem>
                         <SelectItem value="social_media">רשתות חברתיות</SelectItem>
                         <SelectItem value="direct">ישיר</SelectItem>
+                        <SelectItem value="recommended">מומלצים</SelectItem>
                         <SelectItem value="other">אחר</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+                {(newClientSource === "recommended" || newClientSource === "referral") && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recommendedBy">שם הממליץ</Label>
+                    <Input id="recommendedBy" name="recommendedBy" data-testid="input-client-recommended-by" />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="taxId">תעודת זהות / ח.פ.</Label>
                   <Input id="taxId" name="taxId" data-testid="input-client-taxid" />
@@ -197,17 +205,17 @@ export default function Clients() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>שם</TableHead>
-                  <TableHead className="hidden md:table-cell">פרטי קשר</TableHead>
-                  <TableHead>סוג</TableHead>
-                  <TableHead>סטטוס</TableHead>
-                  <TableHead className="hidden lg:table-cell">תהליך</TableHead>
-                  <TableHead className="hidden lg:table-cell">מקור</TableHead>
-                  <TableHead className="hidden md:table-cell">תאריך יצירה</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[18%]">שם</TableHead>
+                  <TableHead className="hidden md:table-cell w-[20%]">פרטי קשר</TableHead>
+                  <TableHead className="w-[10%]">סוג</TableHead>
+                  <TableHead className="w-[10%]">סטטוס</TableHead>
+                  <TableHead className="hidden lg:table-cell w-[10%]">תהליך</TableHead>
+                  <TableHead className="hidden lg:table-cell w-[10%]">מקור</TableHead>
+                  <TableHead className="hidden md:table-cell w-[16%]">תאריך יצירה</TableHead>
+                  <TableHead className="w-[48px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -218,22 +226,24 @@ export default function Clients() {
                     onClick={() => setLocation(`/clients/${client.id}`)}
                     data-testid={`row-client-${client.id}`}
                   >
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-sm">{client.fullName}</p>
-                        <p className="text-xs text-muted-foreground">{client.taxId || "ללא ת.ז."}</p>
+                    <TableCell className="truncate">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{client.fullName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{client.taxId || "ללא ת.ז."}</p>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0">
                         {client.email && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Mail className="w-3 h-3" />{client.email}
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                            <Mail className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{client.email}</span>
                           </div>
                         )}
                         {client.phone && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Phone className="w-3 h-3" />{client.phone}
+                            <Phone className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{client.phone}</span>
                           </div>
                         )}
                       </div>
@@ -251,19 +261,20 @@ export default function Clients() {
                          client.source === "website" ? "אתר" :
                          client.source === "social_media" ? "רשתות חברתיות" :
                          client.source === "direct" ? "ישיר" :
+                         client.source === "recommended" ? "מומלצים" :
                          client.source === "other" ? "אחר" : client.source}
                       </span>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex items-start gap-1.5" data-testid={`text-created-at-${client.id}`}>
                         <Clock className="w-3 h-3 mt-0.5 text-muted-foreground flex-shrink-0" />
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-xs whitespace-nowrap">{formatDateTime(client.createdAt)}</p>
                           <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="w-[48px]">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                           <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>

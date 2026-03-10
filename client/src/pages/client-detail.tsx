@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
-import { ArrowRight, Phone, Mail, MapPin, FileText, Briefcase, CheckSquare, CreditCard, Save, Clock } from "lucide-react";
+import { ArrowRight, Phone, Mail, FileText, Briefcase, CheckSquare, CreditCard, Save, Clock, Plus, Pencil, Trash2, StickyNote, Users } from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Client, Case, Task, Payment } from "@shared/schema";
+import type { Client, Case, Task, Payment, ClientNote, User } from "@shared/schema";
 import { useState, useEffect } from "react";
 
 function formatCurrency(value: number): string {
@@ -38,6 +38,21 @@ const paymentMethodLabels: Record<string, string> = {
   check: "צ׳ק",
   cash: "מזומן",
   other: "אחר",
+};
+
+const sourceLabels: Record<string, string> = {
+  referral: "הפניה",
+  website: "אתר אינטרנט",
+  social_media: "רשתות חברתיות",
+  direct: "ישיר",
+  other: "אחר",
+  recommended: "מומלצים",
+};
+
+const pricingTypeLabels: Record<string, string> = {
+  percentage: "אחוז מההחזר",
+  fixed: "סכום קבוע",
+  hourly: "שעתי",
 };
 
 export default function ClientDetail() {
@@ -66,7 +81,21 @@ export default function ClientDetail() {
     enabled: !!clientId,
   });
 
+  const { data: clientNotes } = useQuery<ClientNote[]>({
+    queryKey: ["/api/clients", clientId, "notes"],
+    enabled: !!clientId,
+  });
+
+  const { data: usersData } = useQuery<User[]>({ queryKey: ["/api/users"] });
+  const { data: allClients } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
+
   const [editData, setEditData] = useState<Partial<Client>>({});
+  const [caseDialogOpen, setCaseDialogOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
 
   useEffect(() => {
     if (client) setEditData(client);
@@ -85,6 +114,122 @@ export default function ClientDetail() {
       toast({ title: "שגיאה", description: err.message, variant: "destructive" });
     },
   });
+
+  const createCaseMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      await apiRequest("POST", "/api/cases", { ...data, clientId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "cases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setCaseDialogOpen(false);
+      toast({ title: "התיק נוצר בהצלחה" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      await apiRequest("POST", "/api/tasks", { ...data, clientId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setTaskDialogOpen(false);
+      toast({ title: "המשימה נוצרה בהצלחה" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createPaymentMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      await apiRequest("POST", "/api/payments", { ...data, clientId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "payments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      setPaymentDialogOpen(false);
+      toast({ title: "התשלום נוסף בהצלחה" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createNoteMutation = useMutation({
+    mutationFn: async (content: string) => {
+      await apiRequest("POST", `/api/clients/${clientId}/notes`, { content });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "notes"] });
+      setNoteText("");
+      toast({ title: "ההערה נוספה" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({ id, content }: { id: string; content: string }) => {
+      await apiRequest("PATCH", `/api/notes/${id}`, { content });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "notes"] });
+      setEditingNoteId(null);
+      toast({ title: "ההערה עודכנה" });
+    },
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/notes/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId, "notes"] });
+      toast({ title: "ההערה נמחקה" });
+    },
+  });
+
+  function handleCaseSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data: Record<string, any> = {};
+    formData.forEach((val, key) => {
+      if (val) {
+        if (key === "taxYear") data[key] = parseInt(val.toString());
+        else data[key] = val.toString();
+      }
+    });
+    createCaseMutation.mutate(data);
+  }
+
+  function handleTaskSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data: Record<string, any> = {};
+    formData.forEach((val, key) => {
+      if (val) data[key] = val.toString();
+    });
+    createTaskMutation.mutate(data);
+  }
+
+  function handlePaymentSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data: Record<string, any> = {};
+    formData.forEach((val, key) => {
+      if (val) data[key] = val.toString();
+    });
+    createPaymentMutation.mutate(data);
+  }
 
   if (isLoading) {
     return (
@@ -139,210 +284,575 @@ export default function ClientDetail() {
             <Mail className="w-4 h-4" />{client.email}
           </div>
         )}
-        {client.address && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MapPin className="w-4 h-4" />{client.address}
-          </div>
-        )}
       </div>
 
-      <Tabs defaultValue="details">
-        <TabsList data-testid="tabs-client-detail">
-          <TabsTrigger value="details" data-testid="tab-details"><FileText className="w-4 h-4 ml-1" />פרטים</TabsTrigger>
-          <TabsTrigger value="cases" data-testid="tab-cases"><Briefcase className="w-4 h-4 ml-1" />תיקים ({clientCases?.length || 0})</TabsTrigger>
-          <TabsTrigger value="tasks" data-testid="tab-tasks"><CheckSquare className="w-4 h-4 ml-1" />משימות ({clientTasks?.length || 0})</TabsTrigger>
-          <TabsTrigger value="payments" data-testid="tab-payments"><CreditCard className="w-4 h-4 ml-1" />תשלומים ({clientPayments?.length || 0})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="mt-4">
-          <Card>
-            <CardContent className="p-5 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>שם מלא</Label>
-                  <Input
-                    value={editData.fullName || ""}
-                    onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
-                    data-testid="input-edit-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>אימייל</Label>
-                  <Input
-                    value={editData.email || ""}
-                    onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                    data-testid="input-edit-email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>טלפון</Label>
-                  <Input
-                    value={editData.phone || ""}
-                    onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                    data-testid="input-edit-phone"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>תעודת זהות / ח.פ.</Label>
-                  <Input
-                    value={editData.taxId || ""}
-                    onChange={(e) => setEditData({ ...editData, taxId: e.target.value })}
-                    data-testid="input-edit-taxid"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>סטטוס</Label>
-                  <Select value={editData.status || ""} onValueChange={(v) => setEditData({ ...editData, status: v as any })}>
-                    <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lead">ליד</SelectItem>
-                      <SelectItem value="active">פעיל</SelectItem>
-                      <SelectItem value="inactive">לא פעיל</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>סטטוס תהליך</Label>
-                  <Select value={editData.clientProcessStatus || ""} onValueChange={(v) => setEditData({ ...editData, clientProcessStatus: v as any })}>
-                    <SelectTrigger data-testid="select-edit-process"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lead">ליד</SelectItem>
-                      <SelectItem value="initial_process">תהליך ראשוני</SelectItem>
-                      <SelectItem value="waiting_for_documents">ממתין למסמכים</SelectItem>
-                      <SelectItem value="ready_for_case_opening">מוכן לפתיחת תיק</SelectItem>
-                      <SelectItem value="in_treatment">בטיפול</SelectItem>
-                      <SelectItem value="transferred_to_accountant">הועבר לרואה חשבון</SelectItem>
-                      <SelectItem value="ready_for_submission">מוכן להגשה</SelectItem>
-                      <SelectItem value="submitted_to_tax_authority">הוגש לרשות המסים</SelectItem>
-                      <SelectItem value="paid_and_closed">שולם ונסגר</SelectItem>
-                      <SelectItem value="not_relevant">לא רלוונטי</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+      {/* Details Section */}
+      <Card>
+        <CardHeader className="pb-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <FileText className="w-4 h-4" />פרטי לקוח
+          </h3>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>שם מלא</Label>
+              <Input
+                value={editData.fullName || ""}
+                onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
+                data-testid="input-edit-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>אימייל</Label>
+              <Input
+                value={editData.email || ""}
+                onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                data-testid="input-edit-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>טלפון</Label>
+              <Input
+                value={editData.phone || ""}
+                onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                data-testid="input-edit-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>תעודת זהות / ח.פ.</Label>
+              <Input
+                value={editData.taxId || ""}
+                onChange={(e) => setEditData({ ...editData, taxId: e.target.value })}
+                data-testid="input-edit-taxid"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>סטטוס</Label>
+              <Select value={editData.status || ""} onValueChange={(v) => setEditData({ ...editData, status: v as any })}>
+                <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lead">ליד</SelectItem>
+                  <SelectItem value="active">פעיל</SelectItem>
+                  <SelectItem value="inactive">לא פעיל</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>סטטוס תהליך</Label>
+              <Select value={editData.clientProcessStatus || ""} onValueChange={(v) => setEditData({ ...editData, clientProcessStatus: v as any })}>
+                <SelectTrigger data-testid="select-edit-process"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lead">ליד</SelectItem>
+                  <SelectItem value="initial_process">תהליך ראשוני</SelectItem>
+                  <SelectItem value="waiting_for_documents">ממתין למסמכים</SelectItem>
+                  <SelectItem value="ready_for_case_opening">מוכן לפתיחת תיק</SelectItem>
+                  <SelectItem value="in_treatment">בטיפול</SelectItem>
+                  <SelectItem value="transferred_to_accountant">הועבר לרואה חשבון</SelectItem>
+                  <SelectItem value="ready_for_submission">מוכן להגשה</SelectItem>
+                  <SelectItem value="submitted_to_tax_authority">הוגש לרשות המסים</SelectItem>
+                  <SelectItem value="paid_and_closed">שולם ונסגר</SelectItem>
+                  <SelectItem value="not_relevant">לא רלוונטי</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>מקור</Label>
+              <Select value={editData.source || ""} onValueChange={(v) => setEditData({ ...editData, source: v as any })}>
+                <SelectTrigger data-testid="select-edit-source"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="referral">הפניה</SelectItem>
+                  <SelectItem value="website">אתר אינטרנט</SelectItem>
+                  <SelectItem value="social_media">רשתות חברתיות</SelectItem>
+                  <SelectItem value="direct">ישיר</SelectItem>
+                  <SelectItem value="recommended">מומלצים</SelectItem>
+                  <SelectItem value="other">אחר</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(editData.source === "recommended" || editData.source === "referral") && (
               <div className="space-y-2">
-                <Label>כתובת</Label>
+                <Label>שם הממליץ</Label>
                 <Input
-                  value={editData.address || ""}
-                  onChange={(e) => setEditData({ ...editData, address: e.target.value })}
-                  data-testid="input-edit-address"
+                  value={editData.recommendedBy || ""}
+                  onChange={(e) => setEditData({ ...editData, recommendedBy: e.target.value })}
+                  data-testid="input-edit-recommended-by"
                 />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>כתובת</Label>
+              <Input
+                value={editData.address || ""}
+                onChange={(e) => setEditData({ ...editData, address: e.target.value })}
+                data-testid="input-edit-address"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-semibold mb-3">תמחור</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>סוג תמחור</Label>
+                <Select value={editData.pricingType || ""} onValueChange={(v) => setEditData({ ...editData, pricingType: v as any })}>
+                  <SelectTrigger data-testid="select-edit-pricing-type"><SelectValue placeholder="בחר סוג" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">אחוז מההחזר</SelectItem>
+                    <SelectItem value="fixed">סכום קבוע</SelectItem>
+                    <SelectItem value="hourly">שעתי</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editData.pricingType === "percentage" && (
+                <div className="space-y-2">
+                  <Label>אחוז מוסכם (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={editData.agreedPercentage || ""}
+                    onChange={(e) => setEditData({ ...editData, agreedPercentage: e.target.value })}
+                    data-testid="input-edit-agreed-percentage"
+                  />
+                </div>
+              )}
+              {(editData.pricingType === "fixed" || editData.pricingType === "hourly") && (
+                <div className="space-y-2">
+                  <Label>{editData.pricingType === "fixed" ? "סכום קבוע (₪)" : "תעריף שעתי (₪)"}</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editData.agreedFixedAmount || ""}
+                    onChange={(e) => setEditData({ ...editData, agreedFixedAmount: e.target.value })}
+                    data-testid="input-edit-agreed-amount"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>הערות כלליות</Label>
+            <Textarea
+              value={editData.notes || ""}
+              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+              rows={3}
+              data-testid="input-edit-notes"
+            />
+          </div>
+          <div className="flex justify-start">
+            <Button onClick={() => updateMutation.mutate(editData)} disabled={updateMutation.isPending} data-testid="button-save-client">
+              <Save className="w-4 h-4 ml-2" />{updateMutation.isPending ? "שומר..." : "שמור שינויים"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notes History Section */}
+      <Card>
+        <CardHeader className="pb-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <StickyNote className="w-4 h-4" />היסטוריית הערות ({clientNotes?.length || 0})
+          </h3>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Textarea
+              placeholder="הוסף הערה חדשה..."
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              rows={2}
+              className="flex-1"
+              data-testid="input-new-note"
+            />
+            <Button
+              onClick={() => { if (noteText.trim()) createNoteMutation.mutate(noteText.trim()); }}
+              disabled={!noteText.trim() || createNoteMutation.isPending}
+              size="sm"
+              className="self-end"
+              data-testid="button-add-note"
+            >
+              <Plus className="w-4 h-4 ml-1" />הוסף
+            </Button>
+          </div>
+          {clientNotes && clientNotes.length > 0 ? (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {clientNotes.map(note => (
+                <div key={note.id} className="border rounded-md p-3 space-y-1" data-testid={`note-${note.id}`}>
+                  {editingNoteId === note.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={editingNoteText}
+                        onChange={(e) => setEditingNoteText(e.target.value)}
+                        rows={2}
+                        data-testid="input-edit-note"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => updateNoteMutation.mutate({ id: note.id, content: editingNoteText })} data-testid="button-save-note">שמור</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingNoteId(null)} data-testid="button-cancel-note">ביטול</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {formatDateTime(note.createdAt)}
+                          {relativeTime(note.createdAt) && ` (${relativeTime(note.createdAt)})`}
+                        </span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.content); }}
+                            data-testid={`button-edit-note-${note.id}`}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 text-destructive"
+                            onClick={() => deleteNoteMutation.mutate(note.id)}
+                            data-testid={`button-delete-note-${note.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-2">אין הערות עדיין</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Cases Section */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Briefcase className="w-4 h-4" />תיקים ({clientCases?.length || 0})
+          </h3>
+          <Button size="sm" onClick={() => setCaseDialogOpen(true)} data-testid="button-add-case-inline">
+            <Plus className="w-4 h-4 ml-1" />פתח תיק
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {clientCases && clientCases.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>סוג שירות</TableHead>
+                  <TableHead>שנת מס</TableHead>
+                  <TableHead>סטטוס</TableHead>
+                  <TableHead>עדיפות</TableHead>
+                  <TableHead>הערכת החזר</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientCases.map(c => (
+                  <TableRow key={c.id} data-testid={`row-case-${c.id}`}>
+                    <TableCell className="text-sm">{serviceTypeLabels[c.serviceType || ""] || c.serviceType}</TableCell>
+                    <TableCell className="text-sm">{c.taxYear || "-"}</TableCell>
+                    <TableCell><StatusBadge status={c.status} /></TableCell>
+                    <TableCell><StatusBadge status={c.priority} /></TableCell>
+                    <TableCell className="text-sm">{c.refundEstimate ? formatCurrency(parseFloat(c.refundEstimate)) : "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">אין תיקים ללקוח זה</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tasks Section */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <CheckSquare className="w-4 h-4" />משימות ({clientTasks?.length || 0})
+          </h3>
+          <Button size="sm" onClick={() => setTaskDialogOpen(true)} data-testid="button-add-task-inline">
+            <Plus className="w-4 h-4 ml-1" />הוסף משימה
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {clientTasks && clientTasks.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>משימה</TableHead>
+                  <TableHead>תאריך יעד</TableHead>
+                  <TableHead>סטטוס</TableHead>
+                  <TableHead>עדיפות</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientTasks.map(t => (
+                  <TableRow key={t.id} data-testid={`row-task-${t.id}`}>
+                    <TableCell className="text-sm font-medium">{t.taskName}</TableCell>
+                    <TableCell className="text-sm">{t.dueDate || "-"}</TableCell>
+                    <TableCell><StatusBadge status={t.status} /></TableCell>
+                    <TableCell><StatusBadge status={t.priority} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">אין משימות ללקוח זה</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Payments Section */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <CreditCard className="w-4 h-4" />תשלומים ({clientPayments?.length || 0})
+          </h3>
+          <Button size="sm" onClick={() => setPaymentDialogOpen(true)} data-testid="button-add-payment-inline">
+            <Plus className="w-4 h-4 ml-1" />הוסף תשלום
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {clientPayments && clientPayments.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>סכום</TableHead>
+                  <TableHead>תאריך</TableHead>
+                  <TableHead>אמצעי תשלום</TableHead>
+                  <TableHead>סטטוס</TableHead>
+                  <TableHead>מס׳ אסמכתא</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientPayments.map(p => (
+                  <TableRow key={p.id} data-testid={`row-payment-${p.id}`}>
+                    <TableCell className="text-sm font-medium">{formatCurrency(parseFloat(p.amount))}</TableCell>
+                    <TableCell className="text-sm">{p.paymentDate || "-"}</TableCell>
+                    <TableCell className="text-sm">{paymentMethodLabels[p.paymentMethod || ""] || p.paymentMethod}</TableCell>
+                    <TableCell><StatusBadge status={p.status} /></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{p.referenceNumber || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">אין תשלומים ללקוח זה</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create Case Dialog */}
+      <Dialog open={caseDialogOpen} onOpenChange={setCaseDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>תיק חדש - {client.fullName}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCaseSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>שנת מס</Label>
+                <Input name="taxYear" type="number" placeholder="2024" data-testid="input-inline-case-year" />
               </div>
               <div className="space-y-2">
-                <Label>הערות</Label>
-                <Textarea
-                  value={editData.notes || ""}
-                  onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
-                  rows={3}
-                  data-testid="input-edit-notes"
-                />
+                <Label>סוג שירות</Label>
+                <Select name="serviceType" defaultValue="tax_refund">
+                  <SelectTrigger data-testid="select-inline-case-service"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tax_refund">החזר מס</SelectItem>
+                    <SelectItem value="bookkeeping">הנהלת חשבונות</SelectItem>
+                    <SelectItem value="annual_report">דוח שנתי</SelectItem>
+                    <SelectItem value="quarterly_report">דוח רבעוני</SelectItem>
+                    <SelectItem value="vat_report">דוח מע״מ</SelectItem>
+                    <SelectItem value="business_registration">רישום עסק</SelectItem>
+                    <SelectItem value="consultation">ייעוץ</SelectItem>
+                    <SelectItem value="other">אחר</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex justify-start">
-                <Button onClick={() => updateMutation.mutate(editData)} disabled={updateMutation.isPending} data-testid="button-save-client">
-                  <Save className="w-4 h-4 ml-2" />{updateMutation.isPending ? "שומר..." : "שמור שינויים"}
-                </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>עדיפות</Label>
+                <Select name="priority" defaultValue="medium">
+                  <SelectTrigger data-testid="select-inline-case-priority"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">נמוכה</SelectItem>
+                    <SelectItem value="medium">בינונית</SelectItem>
+                    <SelectItem value="high">גבוהה</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <div className="space-y-2">
+                <Label>מטפל אחראי</Label>
+                <Select name="assignedTo">
+                  <SelectTrigger data-testid="select-inline-case-assigned"><SelectValue placeholder="בחר מטפל" /></SelectTrigger>
+                  <SelectContent>
+                    {usersData?.map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>הערכת החזר</Label>
+              <Input name="refundEstimate" type="number" step="0.01" placeholder="0.00" data-testid="input-inline-case-estimate" />
+            </div>
+            <div className="space-y-2">
+              <Label>הערות</Label>
+              <Textarea name="notes" rows={2} data-testid="input-inline-case-notes" />
+            </div>
+            <div className="flex justify-start gap-2">
+              <Button type="submit" disabled={createCaseMutation.isPending} data-testid="button-submit-inline-case">
+                {createCaseMutation.isPending ? "יוצר..." : "צור תיק"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setCaseDialogOpen(false)}>ביטול</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        <TabsContent value="cases" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              {clientCases && clientCases.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>סוג שירות</TableHead>
-                      <TableHead>שנת מס</TableHead>
-                      <TableHead>סטטוס</TableHead>
-                      <TableHead>עדיפות</TableHead>
-                      <TableHead>הערכת החזר</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+      {/* Create Task Dialog */}
+      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>משימה חדשה - {client.fullName}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleTaskSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>שם משימה *</Label>
+              <Input name="taskName" required data-testid="input-inline-task-name" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>תאריך יעד</Label>
+                <Input name="dueDate" type="date" data-testid="input-inline-task-due" />
+              </div>
+              <div className="space-y-2">
+                <Label>עדיפות</Label>
+                <Select name="priority" defaultValue="medium">
+                  <SelectTrigger data-testid="select-inline-task-priority"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">נמוכה</SelectItem>
+                    <SelectItem value="medium">בינונית</SelectItem>
+                    <SelectItem value="high">גבוהה</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {clientCases && clientCases.length > 0 && (
+              <div className="space-y-2">
+                <Label>תיק משויך</Label>
+                <Select name="caseId">
+                  <SelectTrigger data-testid="select-inline-task-case"><SelectValue placeholder="בחר תיק (אופציונלי)" /></SelectTrigger>
+                  <SelectContent>
                     {clientCases.map(c => (
-                      <TableRow key={c.id} data-testid={`row-case-${c.id}`}>
-                        <TableCell className="text-sm">{serviceTypeLabels[c.serviceType || ""] || c.serviceType}</TableCell>
-                        <TableCell className="text-sm">{c.taxYear || "-"}</TableCell>
-                        <TableCell><StatusBadge status={c.status} /></TableCell>
-                        <TableCell><StatusBadge status={c.priority} /></TableCell>
-                        <TableCell className="text-sm">{c.refundEstimate ? formatCurrency(parseFloat(c.refundEstimate)) : "-"}</TableCell>
-                      </TableRow>
+                      <SelectItem key={c.id} value={c.id}>
+                        {serviceTypeLabels[c.serviceType || ""] || c.serviceType} {c.taxYear ? `(${c.taxYear})` : ""}
+                      </SelectItem>
                     ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="p-8 text-center text-sm text-muted-foreground">אין תיקים ללקוח זה</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>הערות</Label>
+              <Textarea name="notes" rows={2} data-testid="input-inline-task-notes" />
+            </div>
+            <div className="flex justify-start gap-2">
+              <Button type="submit" disabled={createTaskMutation.isPending} data-testid="button-submit-inline-task">
+                {createTaskMutation.isPending ? "יוצר..." : "צור משימה"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setTaskDialogOpen(false)}>ביטול</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        <TabsContent value="tasks" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              {clientTasks && clientTasks.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>משימה</TableHead>
-                      <TableHead>תאריך יעד</TableHead>
-                      <TableHead>סטטוס</TableHead>
-                      <TableHead>עדיפות</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clientTasks.map(t => (
-                      <TableRow key={t.id} data-testid={`row-task-${t.id}`}>
-                        <TableCell className="text-sm font-medium">{t.taskName}</TableCell>
-                        <TableCell className="text-sm">{t.dueDate || "-"}</TableCell>
-                        <TableCell><StatusBadge status={t.status} /></TableCell>
-                        <TableCell><StatusBadge status={t.priority} /></TableCell>
-                      </TableRow>
+      {/* Create Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>תשלום חדש - {client.fullName}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handlePaymentSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>סכום *</Label>
+                <Input name="amount" type="number" step="0.01" required data-testid="input-inline-payment-amount" />
+              </div>
+              <div className="space-y-2">
+                <Label>תאריך תשלום</Label>
+                <Input name="paymentDate" type="date" data-testid="input-inline-payment-date" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>אמצעי תשלום</Label>
+                <Select name="paymentMethod" defaultValue="bank_transfer">
+                  <SelectTrigger data-testid="select-inline-payment-method"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="credit_card">כרטיס אשראי</SelectItem>
+                    <SelectItem value="bank_transfer">העברה בנקאית</SelectItem>
+                    <SelectItem value="check">צ׳ק</SelectItem>
+                    <SelectItem value="cash">מזומן</SelectItem>
+                    <SelectItem value="other">אחר</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>סטטוס</Label>
+                <Select name="status" defaultValue="paid">
+                  <SelectTrigger data-testid="select-inline-payment-status"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paid">שולם</SelectItem>
+                    <SelectItem value="pending">ממתין</SelectItem>
+                    <SelectItem value="cancelled">בוטל</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {clientCases && clientCases.length > 0 && (
+              <div className="space-y-2">
+                <Label>תיק משויך</Label>
+                <Select name="caseId">
+                  <SelectTrigger data-testid="select-inline-payment-case"><SelectValue placeholder="בחר תיק (אופציונלי)" /></SelectTrigger>
+                  <SelectContent>
+                    {clientCases.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {serviceTypeLabels[c.serviceType || ""] || c.serviceType} {c.taxYear ? `(${c.taxYear})` : ""}
+                      </SelectItem>
                     ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="p-8 text-center text-sm text-muted-foreground">אין משימות ללקוח זה</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="payments" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              {clientPayments && clientPayments.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>סכום</TableHead>
-                      <TableHead>תאריך</TableHead>
-                      <TableHead>אמצעי תשלום</TableHead>
-                      <TableHead>סטטוס</TableHead>
-                      <TableHead>מס׳ אסמכתא</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clientPayments.map(p => (
-                      <TableRow key={p.id} data-testid={`row-payment-${p.id}`}>
-                        <TableCell className="text-sm font-medium">{formatCurrency(parseFloat(p.amount))}</TableCell>
-                        <TableCell className="text-sm">{p.paymentDate || "-"}</TableCell>
-                        <TableCell className="text-sm">{paymentMethodLabels[p.paymentMethod || ""] || p.paymentMethod}</TableCell>
-                        <TableCell><StatusBadge status={p.status} /></TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{p.referenceNumber || "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="p-8 text-center text-sm text-muted-foreground">אין תשלומים ללקוח זה</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>מס׳ אסמכתא</Label>
+              <Input name="referenceNumber" data-testid="input-inline-payment-ref" />
+            </div>
+            <div className="space-y-2">
+              <Label>הערות</Label>
+              <Textarea name="notes" rows={2} data-testid="input-inline-payment-notes" />
+            </div>
+            <div className="flex justify-start gap-2">
+              <Button type="submit" disabled={createPaymentMutation.isPending} data-testid="button-submit-inline-payment">
+                {createPaymentMutation.isPending ? "שומר..." : "הוסף תשלום"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setPaymentDialogOpen(false)}>ביטול</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

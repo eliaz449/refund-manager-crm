@@ -1,7 +1,7 @@
 import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens,
+  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes,
   type User, type InsertUser,
   type Client, type InsertClient,
   type Case, type InsertCase,
@@ -9,6 +9,7 @@ import {
   type Payment, type InsertPayment,
   type CommunicationLog, type InsertCommunicationLog,
   type Transaction, type InsertTransaction,
+  type ClientNote, type InsertClientNote,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -56,6 +57,11 @@ export interface IStorage {
   getTransactionsByClient(clientId: string): Promise<Transaction[]>;
   createTransaction(tx: InsertTransaction): Promise<Transaction>;
   deleteTransaction(id: string): Promise<void>;
+
+  getClientNotes(clientId: string): Promise<ClientNote[]>;
+  createClientNote(note: InsertClientNote): Promise<ClientNote>;
+  updateClientNote(id: string, content: string): Promise<ClientNote | undefined>;
+  deleteClientNote(id: string): Promise<void>;
 
   getDashboardStats(): Promise<{
     totalLeads: number;
@@ -246,6 +252,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTransaction(id: string): Promise<void> {
     await db.delete(transactions).where(eq(transactions.id, id));
+  }
+
+  async getClientNotes(clientId: string): Promise<ClientNote[]> {
+    return db.select().from(clientNotes).where(eq(clientNotes.clientId, clientId)).orderBy(desc(clientNotes.createdAt));
+  }
+
+  async createClientNote(note: InsertClientNote): Promise<ClientNote> {
+    const [created] = await db.insert(clientNotes).values(note).returning();
+    return created;
+  }
+
+  async updateClientNote(id: string, content: string): Promise<ClientNote | undefined> {
+    const [updated] = await db.update(clientNotes).set({ content, updatedAt: new Date() }).where(eq(clientNotes.id, id)).returning();
+    return updated;
+  }
+
+  async deleteClientNote(id: string): Promise<void> {
+    await db.delete(clientNotes).where(eq(clientNotes.id, id));
   }
 
   async getDashboardStats() {

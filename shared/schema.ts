@@ -14,7 +14,8 @@ export const clientProcessStatusEnum = pgEnum("client_process_status", [
 export const leadStatusEnum = pgEnum("lead_status", [
   "answered", "not_answered_1", "not_answered_2", "closed_deal", "paid_opening_fee", "not_relevant"
 ]);
-export const sourceEnum = pgEnum("source", ["referral", "website", "social_media", "direct", "other"]);
+export const sourceEnum = pgEnum("source", ["referral", "website", "social_media", "direct", "other", "recommended"]);
+export const pricingTypeEnum = pgEnum("pricing_type", ["percentage", "fixed", "hourly"]);
 export const formTypeEnum = pgEnum("form_type", ["135", "1301", "other"]);
 export const serviceTypeEnum = pgEnum("service_type", [
   "tax_refund", "bookkeeping", "annual_report", "quarterly_report",
@@ -63,6 +64,10 @@ export const clients = pgTable("clients", {
   source: sourceEnum("source").default("direct"),
   notes: text("notes"),
   communicationLog: text("communication_log"),
+  recommendedBy: text("recommended_by"),
+  pricingType: pricingTypeEnum("pricing_type"),
+  agreedPercentage: numeric("agreed_percentage"),
+  agreedFixedAmount: numeric("agreed_fixed_amount"),
   onboardingDate: date("onboarding_date"),
   lastCallDate: date("last_call_date"),
   assignedAccountantId: varchar("assigned_accountant_id"),
@@ -149,6 +154,15 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const clientNotes = pgTable("client_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  content: text("content").notNull(),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -165,6 +179,7 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });
 export const insertCommunicationLogSchema = createInsertSchema(communicationLogs).omit({ id: true, createdAt: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
+export const insertClientNoteSchema = createInsertSchema(clientNotes).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -180,3 +195,5 @@ export type InsertCommunicationLog = z.infer<typeof insertCommunicationLogSchema
 export type CommunicationLog = typeof communicationLogs.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
+export type InsertClientNote = z.infer<typeof insertClientNoteSchema>;
+export type ClientNote = typeof clientNotes.$inferSelect;

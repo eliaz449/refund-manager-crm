@@ -39,7 +39,7 @@ const hebrewLabels: Record<string, string> = {
   inactive: "לא פעיל",
   new: "חדש",
   in_progress: "בטיפול",
-  completed: "הושלם",
+  completed: "תקבול",
   not_started: "טרם התחיל",
   submitted: "הוגש",
   approved: "אושר",

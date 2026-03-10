@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
 import { requireAuth } from "./auth";
-import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema } from "@shared/schema";
+import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
 
 const partialClientSchema = insertClientSchema.partial();
 const partialCaseSchema = insertCaseSchema.partial();
@@ -195,6 +195,31 @@ export async function registerRoutes(
 
   app.delete("/api/transactions/:id", requireAuth, async (req, res) => {
     await storage.deleteTransaction(req.params.id);
+    res.status(204).send();
+  });
+
+  app.get("/api/clients/:clientId/notes", requireAuth, async (req, res) => {
+    const notes = await storage.getClientNotes(req.params.clientId);
+    res.json(notes);
+  });
+
+  app.post("/api/clients/:clientId/notes", requireAuth, async (req, res) => {
+    const parsed = insertClientNoteSchema.safeParse({ ...req.body, clientId: req.params.clientId });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const note = await storage.createClientNote(parsed.data);
+    res.status(201).json(note);
+  });
+
+  app.patch("/api/notes/:id", requireAuth, async (req, res) => {
+    const { content } = req.body;
+    if (!content || typeof content !== "string") return res.status(400).json({ message: "Content is required" });
+    const updated = await storage.updateClientNote(req.params.id, content);
+    if (!updated) return res.status(404).json({ message: "Note not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/notes/:id", requireAuth, async (req, res) => {
+    await storage.deleteClientNote(req.params.id);
     res.status(204).send();
   });
 

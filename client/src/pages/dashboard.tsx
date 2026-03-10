@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Users, Briefcase, CheckSquare, TrendingUp, TrendingDown, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { PageHeader } from "@/components/page-header";
@@ -46,7 +47,7 @@ export default function Dashboard() {
     { name: "בטיפול", count: casesData.filter(c => c.status === "in_progress").length },
     { name: "איסוף מסמכים", count: casesData.filter(c => c.status === "document_collection").length },
     { name: "הוגש", count: casesData.filter(c => c.status === "submitted").length },
-    { name: "הושלם", count: casesData.filter(c => c.status === "completed").length },
+    { name: "תקבול", count: casesData.filter(c => c.status === "completed").length },
   ].filter(d => d.count > 0) : [];
 
   const recentTasks = tasksData
@@ -54,6 +55,17 @@ export default function Dashboard() {
     .slice(0, 5) || [];
 
   const recentPayments = paymentsData?.slice(0, 5) || [];
+
+  const clientMap = new Map<string, string>();
+  clients?.forEach(c => { clientMap.set(c.id, c.fullName); });
+
+  const paymentMethodLabels: Record<string, string> = {
+    credit_card: "כרטיס אשראי",
+    bank_transfer: "העברה בנקאית",
+    check: "צ׳ק",
+    cash: "מזומן",
+    other: "אחר",
+  };
 
   if (statsLoading) {
     return (
@@ -185,17 +197,31 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-3">
-              {recentPayments.map(payment => (
-                <div key={payment.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0" data-testid={`row-payment-${payment.id}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{formatCurrency(parseFloat(payment.amount))}</p>
-                    <p className="text-xs text-muted-foreground">{payment.paymentDate || "ללא תאריך"}</p>
+              {recentPayments.map(payment => {
+                const clientName = clientMap.get(payment.clientId) || "לקוח לא ידוע";
+                const methodLabel = paymentMethodLabels[payment.paymentMethod || "other"] || "אחר";
+                const isPartial = payment.status === "pending";
+                return (
+                  <div key={payment.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0" data-testid={`row-payment-${payment.id}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate" data-testid={`text-payment-client-${payment.id}`}>{clientName}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs text-muted-foreground">{formatCurrency(parseFloat(payment.amount))}</p>
+                        <span className="text-xs text-muted-foreground">·</span>
+                        <p className="text-xs text-muted-foreground" data-testid={`text-payment-method-${payment.id}`}>{methodLabel}</p>
+                        <span className="text-xs text-muted-foreground">·</span>
+                        <p className="text-xs text-muted-foreground">{payment.paymentDate || "ללא תאריך"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant={isPartial ? "outline" : "secondary"} className="text-xs" data-testid={`badge-payment-type-${payment.id}`}>
+                        {isPartial ? "חלקי" : "מלא"}
+                      </Badge>
+                      <StatusBadge status={payment.status} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <StatusBadge status={payment.status} />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {recentPayments.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">אין תשלומים עדיין</p>
               )}

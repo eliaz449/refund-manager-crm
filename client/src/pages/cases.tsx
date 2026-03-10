@@ -211,7 +211,7 @@ export default function Cases() {
             <SelectItem value="review">בבדיקה</SelectItem>
             <SelectItem value="submitted">הוגש</SelectItem>
             <SelectItem value="pending_tax_authority">ממתין לרשות המסים</SelectItem>
-            <SelectItem value="completed">הושלם</SelectItem>
+            <SelectItem value="completed">תקבול</SelectItem>
             <SelectItem value="cancelled">בוטל</SelectItem>
           </SelectContent>
         </Select>

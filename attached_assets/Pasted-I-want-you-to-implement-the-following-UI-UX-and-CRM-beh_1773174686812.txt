@@ -1,0 +1,293 @@
+I want you to implement the following UI/UX and CRM behavior improvements in the existing production CRM system.
+
+IMPORTANT:
+- Do not break any existing working functionality
+- Do not change anything unrelated to the requested items
+- Do not change the existing design language unless needed for alignment/clarity
+- Keep the current database structure stable unless a small safe extension is required
+- If a database/schema change is needed, do it carefully with a migration and preserve existing data
+- Keep all current working flows intact:
+  - Landy lead intake
+  - client creation
+  - case creation
+  - tasks
+  - payments
+  - authentication
+- Make all changes production-safe and visually clean
+- If something requires a design decision, preserve the current style and improve it subtly without redesigning the whole app
+
+I will also attach screenshots from the current system for visual reference. Please use them and keep the layout consistent.
+
+==================================================
+1. CASE STATUS IMPROVEMENTS
+==================================================
+
+In the Cases area / case status flow, I want the statuses to be improved and clearer.
+
+Please update the case statuses so they include at least the following flow:
+
+1. "פתיחת תיק"
+2. "איסוף מסמכים"
+
+Also:
+- Replace the word "הושלם" with "תקבול" wherever it refers to payment completion / receipt stage
+- Make sure the case workflow and display reflect these Hebrew labels correctly
+- Do not break existing filtering, sorting, reporting, or status logic
+- If old statuses already exist in the database, map them safely or preserve backward compatibility
+
+Please make sure the status display is clear and usable both in:
+- cases table
+- client profile
+- any status dropdown/edit forms
+
+==================================================
+2. RECENT PAYMENTS IMPROVEMENT
+==================================================
+
+In the "Recent Payments" area, I want each payment record to show more useful context.
+
+For every recent payment shown, display:
+- which client the payment belongs to
+- payment method
+- whether the full amount was paid or not
+
+This should be clearly visible in the payments list / dashboard area.
+
+If needed, calculate and display one of the following:
+- "שולם מלא"
+- "שולם חלקית"
+
+based on comparison between:
+- agreed amount / expected amount
+- actual amount received
+
+If the agreed amount is not yet stored in the right place, prepare the UI and logic so it can support this properly.
+
+==================================================
+3. CLIENTS TABLE LAYOUT FIXES
+==================================================
+
+In the Clients table:
+- the table currently feels visually misaligned
+- I want all columns to be straight, aligned, and clean
+- each column title should match the content below it in a neat and readable way
+- for example, under the "שם" column, the names should appear properly aligned and organized
+
+Please improve:
+- column alignment
+- row spacing
+- table readability
+- responsiveness if needed
+
+Do this without redesigning the whole page.
+
+==================================================
+4. REMOVE ADDRESS FROM CLIENT DETAILS
+==================================================
+
+Inside the client view / client details:
+- remove the address field from the visible client details area
+
+Do not delete the field from the database unless necessary.
+Prefer:
+- hide it from the UI
+- preserve existing data safely
+
+==================================================
+5. CLIENT NOTES / COMMENTS IMPROVEMENT
+==================================================
+
+When I add a note to a client, I want it to behave like a real notes history.
+
+Requirements:
+- when a new note is added, it should appear below as a new note entry
+- show the exact time/date the note was added
+- each note should be editable
+- each note should be deletable
+- notes should appear as a chronological notes feed / history
+- keep it visually clean and readable
+
+If the current system only stores one plain notes field, and a schema update is needed, implement this carefully.
+Preferred approach:
+- create proper client notes history entries
+- preserve old notes if possible
+- do not break existing notes logic
+
+==================================================
+6. CREATE CASE FROM INSIDE CLIENT PAGE
+==================================================
+
+Inside the client page:
+- in the case section, I want to be able to open/create a new case directly from the client
+
+Requirements:
+- add a clear button/action like "פתח תיק"
+- when creating from inside a client, the client should already be preselected
+- the new case should automatically be linked to that client
+- do not require me to leave the client page to create a case
+
+==================================================
+7. CREATE TASK FROM INSIDE CLIENT PAGE
+==================================================
+
+Inside the client page:
+- in the tasks section, I want to be able to add a task directly for that client
+
+Requirements:
+- add a clear "הוסף משימה" action inside the client page
+- the client should already be linked automatically
+- if relevant, allow optional linking to an existing case
+- do not require leaving the client page
+
+==================================================
+8. ADD PAYMENT FROM INSIDE CLIENT PAGE
+==================================================
+
+Inside the client page:
+- in the payments section, I want to be able to add a payment directly from that client
+
+Requirements:
+- add "הוסף תשלום"
+- prefill the client automatically
+- allow optional case association if relevant
+- keep it simple and quick
+
+==================================================
+9. CLIENT SOURCE: REFERRAL / RECOMMENDED BY
+==================================================
+
+When creating a new client:
+- in the source field, add a new option:
+  "מומלצים"
+
+When source = "מומלצים", also allow:
+- who referred/recommended the client
+- when the recommendation happened
+
+Requirements:
+- add fields such as:
+  - recommended_by
+  - recommendation_date
+- show these fields only when relevant
+- store them cleanly in the database
+- make them visible in the client details if useful
+- preserve existing source options
+
+==================================================
+10. CLIENT PAGE LAYOUT: ONE LONG SCROLL PAGE
+==================================================
+
+Currently the client page has tabs like:
+- פרטים
+- תיקים
+- משימות
+- תשלומים
+
+I do NOT want these as separate tabs anymore.
+
+I want the client page to become one unified scrollable page, where everything appears on one screen vertically.
+
+Desired structure:
+1. client details / summary
+2. notes
+3. cases
+4. tasks
+5. payments
+(and other relevant sections if they already exist)
+
+Requirements:
+- no need to click tabs to see each section
+- everything should be on one page and scroll from top to bottom
+- use section headers for clarity
+- maintain clean spacing and hierarchy
+- preserve all existing functionality inside each section
+- do not remove data, only improve the layout/experience
+
+==================================================
+11. AGREED FEE / COMMISSION ON CLIENT
+==================================================
+
+Inside the client record, I want an option to store the agreed commercial terms.
+
+Add fields for:
+- agreed percentage
+- agreed fee / agreed price
+
+Purpose:
+- I want to record what percentage or price was closed with the client
+- later, when payment ("תקבול") is received, I want the system to calculate automatically based on what was agreed
+
+Requirements:
+- add fields safely to the client or appropriate entity
+- make it clear whether this is:
+  - percentage-based
+  - fixed-price-based
+- if both are needed, support both in a clean way
+
+Suggested structure:
+- pricing_type: percentage / fixed
+- agreed_percentage
+- agreed_fixed_amount
+
+Then:
+- when a payment is recorded, support calculation against the agreed amount
+- help indicate whether payment is full or partial
+- do not break current payments logic
+
+==================================================
+12. GENERAL UX / SAFETY REQUIREMENTS
+==================================================
+
+Please implement everything carefully with these constraints:
+
+- Do not break authentication
+- Do not break Landy webhook intake
+- Do not break existing clients/cases/tasks/payments data
+- Do not remove working API endpoints
+- Do not change unrelated pages
+- Keep the UI in Hebrew where the app is already Hebrew
+- Keep labels, buttons, and forms consistent with Hebrew CRM usage
+- Preserve production data
+- Run migrations safely if needed
+- If any existing single-field note model or status model must be upgraded, do it with backward compatibility
+- Keep all changes responsive and readable on desktop first, while not ruining mobile usability
+- Do not introduce visual clutter
+
+==================================================
+13. BEFORE/AFTER VALIDATION
+==================================================
+
+Before finishing, please verify:
+
+1. Existing clients still load correctly
+2. Existing cases still load correctly
+3. Existing tasks still load correctly
+4. Existing payments still load correctly
+5. Client creation still works
+6. Case creation still works
+7. Task creation still works
+8. Payment creation still works
+9. Landy webhook still creates leads
+10. Authentication/login still works
+11. The new client page unified layout works smoothly
+12. Notes can be added / edited / deleted
+13. Creating case/task/payment from within client page works correctly
+14. Recent payments now show:
+   - client name
+   - payment method
+   - full/partial payment indication
+
+==================================================
+14. WHAT I WANT BACK FROM YOU
+==================================================
+
+After implementation, please send me:
+
+1. A summary of exactly what was changed
+2. Any schema/database changes that were made
+3. Any migration notes
+4. Any places where old data was preserved / mapped
+5. Any follow-up items you recommend
+
+Again:
+Please use my screenshots as visual reference, improve the system carefully, and do not break anything that already works.
