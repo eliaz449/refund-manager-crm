@@ -34,7 +34,8 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 
 ### Frontend
 - `client/src/App.tsx` - Root app with auth gate, sidebar layout and routing
-- `client/src/pages/login.tsx` - Login page (Hebrew, RTL, email + password)
+- `client/src/pages/login.tsx` - Login page with forgot password flow (Hebrew, RTL)
+- `client/src/pages/settings.tsx` - Account settings page with password change
 - `client/src/pages/` - Page components (Dashboard, Clients, Cases, Tasks, Payments, Transactions)
 - `client/src/hooks/use-auth.ts` - Auth hook (login, logout, changePassword, user state)
 - `client/src/components/` - Reusable components (AppSidebar with logout, StatCard, StatusBadge, PageHeader, EmptyState)
@@ -47,11 +48,16 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 - **Logout**: `POST /api/auth/logout` (clears session)
 - **Session check**: `GET /api/auth/me` (returns current user or 401)
 - **Change password**: `POST /api/auth/change-password` (requires currentPassword + newPassword)
+- **Forgot password**: `POST /api/auth/forgot-password` (generates reset token, returns it in response)
+- **Reset password**: `POST /api/auth/reset-password` (validates token + sets new password)
+- **Validate reset token**: `GET /api/auth/validate-reset-token/:token`
+- **Password reset tokens**: Stored in `password_reset_tokens` table (token, userId, expiresAt, used flag), 1-hour expiry
 - **Session storage**: PostgreSQL via `connect-pg-simple` (auto-creates `session` table)
 - **Session secret**: `SESSION_SECRET` env var
 - **Password hashing**: bcryptjs with 12 salt rounds
 - **Protected routes**: All `/api/*` routes (except `/api/health`, `/api/auth/*`, `/api/webhooks/*`) require authentication
 - **Frontend**: `useAuth` hook checks `/api/auth/me`; shows login page if not authenticated
+- **Account Settings page**: `/settings` route with account info display + password change form
 - **Users**: Two admin accounts (Eliezer Asulin + Eden Asulin) created in seed.ts
 - **Default password**: `TaxPro2026!` (should be changed after first login)
 
@@ -63,6 +69,7 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 - **Payments** - Payment tracking with methods and status
 - **Communication Logs** - Client communication history
 - **Transactions** - Income/expense ledger
+- **Password Reset Tokens** - Reset token storage with expiry and used flag
 
 ## Health & Deployment
 - `GET /api/health` returns `{ "status": "ok" }` — lightweight health endpoint

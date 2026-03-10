@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Users, Briefcase, CheckSquare, CreditCard,
-  ArrowLeftRight, Building2, LogOut
+  ArrowLeftRight, Building2, LogOut, Settings
 } from "lucide-react";
 import {
   Sidebar,
@@ -76,20 +76,34 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4 space-y-3">
         {user && (
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground truncate" data-testid="text-sidebar-user">
-              {user.fullName}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 flex-shrink-0"
-              onClick={() => logout.mutate()}
-              disabled={logout.isPending}
-              data-testid="button-logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground truncate" data-testid="text-sidebar-user">
+                {user.fullName}
+              </span>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Link href="/settings">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    data-testid="link-settings"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => logout.mutate()}
+                  disabled={logout.isPending}
+                  data-testid="button-logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         )}
         <div className="text-xs text-muted-foreground">

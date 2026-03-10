@@ -1,7 +1,7 @@
 import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, clients, cases, tasks, payments, communicationLogs, transactions,
+  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens,
   type User, type InsertUser,
   type Client, type InsertClient,
   type Case, type InsertCase,
@@ -16,6 +16,9 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserPassword(id: string, passwordHash: string): Promise<void>;
+  createResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  getValidResetToken(token: string): Promise<{ id: string; userId: string; token: string; expiresAt: Date } | undefined>;
+  markResetTokenUsed(id: string): Promise<void>;
   getUsers(): Promise<User[]>;
 
   getClients(): Promise<Client[]>;
@@ -82,6 +85,24 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPassword(id: string, passwordHash: string): Promise<void> {
     await db.update(users).set({ passwordHash }).where(eq(users.id, id));
+  }
+
+  async createResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    await db.insert(passwordResetTokens).values({ userId, token, expiresAt });
+  }
+
+  async getValidResetToken(token: string) {
+    const [row] = await db.select().from(passwordResetTokens)
+      .where(and(
+        eq(passwordResetTokens.token, token),
+        eq(passwordResetTokens.used, false),
+        sql`${passwordResetTokens.expiresAt} > NOW()`
+      ));
+    return row ? { id: row.id, userId: row.userId, token: row.token, expiresAt: row.expiresAt } : undefined;
+  }
+
+  async markResetTokenUsed(id: string): Promise<void> {
+    await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, id));
   }
 
   async getUsers(): Promise<User[]> {

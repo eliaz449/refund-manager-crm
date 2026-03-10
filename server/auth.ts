@@ -3,6 +3,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { pool } from "./db";
 import type { Express, Request } from "express";
@@ -151,6 +152,62 @@ export function setupAuth(app: Express) {
       res.json({ message: "הסיסמה שונתה בהצלחה" });
     } catch (err) {
       res.status(500).json({ message: "שגיאה בשינוי סיסמה" });
+    }
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "חובה להזין אימייל" });
+    }
+    try {
+      const user = await storage.getUserByEmail(email.toLowerCase().trim());
+      if (!user) {
+        return res.json({ message: "אם האימייל קיים במערכת, קוד איפוס נוצר. פנה למנהל המערכת." });
+      }
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await storage.createResetToken(user.id, token, expiresAt);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[Password Reset] Token for ${email}: ${token} (expires: ${expiresAt.toISOString()})`);
+      }
+      res.json({ message: "קוד איפוס נוצר. פנה למנהל המערכת לקבלת הקוד." });
+    } catch (err) {
+      res.status(500).json({ message: "שגיאה ביצירת קוד איפוס" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: "חובה להזין קוד איפוס וסיסמה חדשה" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "הסיסמה חייבת להיות לפחות 6 תווים" });
+    }
+    try {
+      const resetToken = await storage.getValidResetToken(token);
+      if (!resetToken) {
+        return res.status(400).json({ message: "קוד איפוס לא תקין או שפג תוקפו" });
+      }
+      const newHash = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(resetToken.userId, newHash);
+      await storage.markResetTokenUsed(resetToken.id);
+      res.json({ message: "הסיסמה אופסה בהצלחה. ניתן להתחבר עם הסיסמה החדשה." });
+    } catch (err) {
+      res.status(500).json({ message: "שגיאה באיפוס סיסמה" });
+    }
+  });
+
+  app.get("/api/auth/validate-reset-token/:token", async (req, res) => {
+    try {
+      const resetToken = await storage.getValidResetToken(req.params.token);
+      if (!resetToken) {
+        return res.status(400).json({ valid: false, message: "קוד איפוס לא תקין או שפג תוקפו" });
+      }
+      res.json({ valid: true });
+    } catch (err) {
+      res.status(500).json({ valid: false, message: "שגיאה" });
     }
   });
 }

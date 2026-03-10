@@ -14,6 +14,7 @@ import Cases from "@/pages/cases";
 import Tasks from "@/pages/tasks";
 import Payments from "@/pages/payments";
 import Transactions from "@/pages/transactions";
+import Settings from "@/pages/settings";
 import LoginPage from "@/pages/login";
 import { Loader2 } from "lucide-react";
 
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/tasks" component={Tasks} />
       <Route path="/payments" component={Payments} />
       <Route path="/transactions" component={Transactions} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );
