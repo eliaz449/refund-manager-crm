@@ -31,6 +31,19 @@ const statusColors: Record<string, string> = {
   submitted_to_tax_authority: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
   paid_and_closed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   not_relevant: "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400",
+  no_answer_1: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  no_answer_2: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  no_answer_3: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  no_answer_4: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  no_answer_5: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  no_answer_6: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  talked: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  sent_documents: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  closed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+  details_received: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
+  waiting_documents: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  document_review: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+  submitted_to_tax: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
 };
 
 const hebrewLabels: Record<string, string> = {
@@ -64,6 +77,19 @@ const hebrewLabels: Record<string, string> = {
   submitted_to_tax_authority: "הוגש לרשות המסים",
   paid_and_closed: "שולם ונסגר",
   not_relevant: "לא רלוונטי",
+  no_answer_1: "אין מענה 1",
+  no_answer_2: "אין מענה 2",
+  no_answer_3: "אין מענה 3",
+  no_answer_4: "אין מענה 4",
+  no_answer_5: "אין מענה 5",
+  no_answer_6: "אין מענה 6",
+  talked: "דיברנו",
+  sent_documents: "שלח מסמכים",
+  closed: "נסגר",
+  details_received: "פרטים התקבלו",
+  waiting_documents: "מחכים למסמכים",
+  document_review: "בדיקת מסמכים",
+  submitted_to_tax: "הוגש למס הכנסה",
 };
 
 export function StatusBadge({ status, className }: { status: string | null | undefined; className?: string }) {

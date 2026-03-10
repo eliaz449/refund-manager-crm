@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
-import { ArrowRight, Phone, Mail, FileText, Briefcase, CheckSquare, CreditCard, Save, Clock, Plus, Pencil, Trash2, StickyNote, Users } from "lucide-react";
+import { ArrowRight, Phone, Mail, FileText, Briefcase, CheckSquare, CreditCard, Save, Clock, Plus, Pencil, Trash2, StickyNote, Users, PhoneCall, PhoneOff, AlertCircle } from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,31 @@ const pricingTypeLabels: Record<string, string> = {
   hourly: "שעתי",
 };
 
+const contactStatusLabels: Record<string, string> = {
+  new: "חדש",
+  no_answer_1: "אין מענה 1",
+  no_answer_2: "אין מענה 2",
+  no_answer_3: "אין מענה 3",
+  no_answer_4: "אין מענה 4",
+  no_answer_5: "אין מענה 5",
+  no_answer_6: "אין מענה 6",
+  talked: "דיברנו",
+  sent_documents: "שלח מסמכים",
+  in_process: "בתהליך",
+  closed: "נסגר",
+  not_relevant: "לא רלוונטי",
+};
+
+const refundStageLabels: Record<string, string> = {
+  details_received: "פרטים התקבלו",
+  waiting_documents: "מחכים למסמכים",
+  document_review: "בדיקת מסמכים",
+  submitted_to_tax: "הוגש למס הכנסה",
+  in_treatment: "בטיפול",
+  approved: "אושר",
+  paid: "שולם",
+};
+
 export default function ClientDetail() {
   const [, params] = useRoute("/clients/:id");
   const [, setLocation] = useLocation();
@@ -96,6 +121,9 @@ export default function ClientDetail() {
   const [noteText, setNoteText] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
+  const [notRelevantReason, setNotRelevantReason] = useState("");
+  const [showNotRelevantDialog, setShowNotRelevantDialog] = useState(false);
+  const [notRelevantSource, setNotRelevantSource] = useState<"contactStatus" | "processStatus">("contactStatus");
 
   useEffect(() => {
     if (client) setEditData(client);
@@ -198,6 +226,64 @@ export default function ClientDetail() {
     },
   });
 
+  const contactAttemptMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/clients/${clientId}/contact-attempt`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "ניסיון התקשרות נרשם" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    },
+  });
+
+  function handleContactStatusChange(newStatus: string) {
+    if (newStatus === "not_relevant") {
+      setNotRelevantSource("contactStatus");
+      setNotRelevantReason("");
+      setShowNotRelevantDialog(true);
+      return;
+    }
+    const updatePayload: Record<string, any> = { contactStatus: newStatus };
+    if (newStatus === "talked" && !client?.firstContactAt) {
+      updatePayload.firstContactAt = new Date();
+    }
+    if (newStatus === "closed") {
+      updatePayload.closedDate = new Date().toISOString().split("T")[0];
+    }
+    updateMutation.mutate(updatePayload);
+  }
+
+  function handleProcessStatusChange(newStatus: string) {
+    if (newStatus === "not_relevant") {
+      setNotRelevantSource("processStatus");
+      setNotRelevantReason("");
+      setShowNotRelevantDialog(true);
+      return;
+    }
+    setEditData({ ...editData, clientProcessStatus: newStatus as any });
+  }
+
+  function handleNotRelevantConfirm() {
+    const updatePayload: Record<string, any> = {};
+    if (notRelevantSource === "contactStatus") {
+      updatePayload.contactStatus = "not_relevant";
+    } else {
+      updatePayload.clientProcessStatus = "not_relevant";
+      setEditData({ ...editData, clientProcessStatus: "not_relevant" as any });
+    }
+    updateMutation.mutate(updatePayload);
+    if (notRelevantReason.trim()) {
+      const prefix = notRelevantSource === "contactStatus" ? "סיבה (סטטוס קשר)" : "סיבה (סטטוס תהליך)";
+      createNoteMutation.mutate(`${prefix}: ${notRelevantReason.trim()}`);
+    }
+    setShowNotRelevantDialog(false);
+    setNotRelevantReason("");
+  }
+
   function handleCaseSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -259,9 +345,11 @@ export default function ClientDetail() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-client-name">{client.fullName}</h1>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <StatusBadge status={client.status} />
             <StatusBadge status={client.clientProcessStatus} />
+            {client.contactStatus && <StatusBadge status={client.contactStatus} />}
+            {client.refundStage && <StatusBadge status={client.refundStage} />}
           </div>
         </div>
       </div>
@@ -285,6 +373,61 @@ export default function ClientDetail() {
           </div>
         )}
       </div>
+
+      {/* Contact Tracking Section */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <PhoneCall className="w-4 h-4" />מעקב התקשרות
+          </h3>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => contactAttemptMutation.mutate()}
+            disabled={contactAttemptMutation.isPending}
+            data-testid="button-contact-attempt"
+          >
+            <PhoneOff className="w-4 h-4 ml-1" />
+            {contactAttemptMutation.isPending ? "רושם..." : "ניסיון התקשרות"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">סטטוס קשר</p>
+              <Select
+                value={client.contactStatus || "new"}
+                onValueChange={handleContactStatusChange}
+              >
+                <SelectTrigger className="h-8 text-sm" data-testid="select-contact-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(contactStatusLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">ניסיונות התקשרות</p>
+              <p className="text-lg font-semibold" data-testid="text-contact-attempts">{client.contactAttempts || 0}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">קשר ראשון</p>
+              <p className="text-sm" data-testid="text-first-contact">
+                {client.firstContactAt ? formatDateTime(client.firstContactAt) : "טרם התקיים"}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">קשר אחרון</p>
+              <p className="text-sm" data-testid="text-last-contact">
+                {client.lastContactAt ? formatDateTime(client.lastContactAt) : "טרם התקיים"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Details Section */}
       <Card>
@@ -340,7 +483,7 @@ export default function ClientDetail() {
             </div>
             <div className="space-y-2">
               <Label>סטטוס תהליך</Label>
-              <Select value={editData.clientProcessStatus || ""} onValueChange={(v) => setEditData({ ...editData, clientProcessStatus: v as any })}>
+              <Select value={editData.clientProcessStatus || ""} onValueChange={handleProcessStatusChange}>
                 <SelectTrigger data-testid="select-edit-process"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="lead">ליד</SelectItem>
@@ -353,6 +496,17 @@ export default function ClientDetail() {
                   <SelectItem value="submitted_to_tax_authority">הוגש לרשות המסים</SelectItem>
                   <SelectItem value="paid_and_closed">שולם ונסגר</SelectItem>
                   <SelectItem value="not_relevant">לא רלוונטי</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>שלב החזר מס</Label>
+              <Select value={editData.refundStage || ""} onValueChange={(v) => setEditData({ ...editData, refundStage: v as any })}>
+                <SelectTrigger data-testid="select-edit-refund-stage"><SelectValue placeholder="בחר שלב" /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(refundStageLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -851,6 +1005,36 @@ export default function ClientDetail() {
               <Button type="button" variant="outline" onClick={() => setPaymentDialogOpen(false)}>ביטול</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Not Relevant Reason Dialog */}
+      <Dialog open={showNotRelevantDialog} onOpenChange={setShowNotRelevantDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              סימון כלא רלוונטי
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">ניתן לכתוב סיבה קצרה. הסיבה תישמר כהערה בכרטיס הלקוח.</p>
+            <Textarea
+              placeholder="מה הסיבה שזה לא רלוונטי?"
+              value={notRelevantReason}
+              onChange={(e) => setNotRelevantReason(e.target.value)}
+              rows={3}
+              data-testid="input-not-relevant-reason"
+            />
+            <div className="flex justify-start gap-2">
+              <Button onClick={handleNotRelevantConfirm} data-testid="button-confirm-not-relevant">
+                אישור
+              </Button>
+              <Button variant="outline" onClick={() => { setShowNotRelevantDialog(false); setNotRelevantReason(""); }} data-testid="button-cancel-not-relevant">
+                ביטול
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

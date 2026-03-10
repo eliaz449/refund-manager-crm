@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Users, Briefcase, CheckSquare, TrendingUp, TrendingDown, UserPlus } from "lucide-react";
+import { Users, Briefcase, CheckSquare, TrendingUp, TrendingDown, UserPlus, PhoneOff, Phone, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
@@ -49,6 +49,84 @@ export default function Dashboard() {
     { name: "הוגש", count: casesData.filter(c => c.status === "submitted").length },
     { name: "תקבול", count: casesData.filter(c => c.status === "completed").length },
   ].filter(d => d.count > 0) : [];
+
+  const contactStatusLabels: Record<string, string> = {
+    new: "חדש",
+    no_answer_1: "אין מענה 1",
+    no_answer_2: "אין מענה 2",
+    no_answer_3: "אין מענה 3",
+    no_answer_4: "אין מענה 4",
+    no_answer_5: "אין מענה 5",
+    no_answer_6: "אין מענה 6",
+    talked: "דיברנו",
+    sent_documents: "שלח מסמכים",
+    in_process: "בתהליך",
+    closed: "נסגר",
+    not_relevant: "לא רלוונטי",
+  };
+
+  const sourceLabels: Record<string, string> = {
+    referral: "הפניה",
+    website: "אתר אינטרנט",
+    social_media: "רשתות חברתיות",
+    direct: "ישיר",
+    other: "אחר",
+    recommended: "מומלצים",
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const leads = clients?.filter(c => c.status === "lead") || [];
+
+  const newLeadsToday = leads.filter(c => {
+    if (!c.createdAt) return false;
+    const d = new Date(c.createdAt);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === today.getTime();
+  }).length;
+
+  const leadsNoAnswer = leads.filter(c =>
+    c.contactStatus?.startsWith("no_answer") || c.contactStatus === "new" || !c.contactStatus
+  ).length;
+
+  const leadsThreePlus = leads.filter(c => (c.contactAttempts || 0) >= 3).length;
+
+  const closedLeads = leads.filter(c => c.contactStatus === "closed").length;
+  const totalLeadsAll = leads.length;
+  const closingRate = totalLeadsAll > 0 ? Math.round((closedLeads / totalLeadsAll) * 100) : 0;
+
+  const leadsWithResponse = leads.filter(c => c.firstContactAt && c.createdAt);
+  const avgResponseMs = leadsWithResponse.length > 0
+    ? leadsWithResponse.reduce((sum, c) => {
+        const created = new Date(c.createdAt!).getTime();
+        const firstContact = new Date(c.firstContactAt!).getTime();
+        return sum + Math.max(0, firstContact - created);
+      }, 0) / leadsWithResponse.length
+    : 0;
+  const avgResponseHours = Math.round(avgResponseMs / (1000 * 60 * 60));
+
+  const contactFunnelData = leads.length > 0 ? (() => {
+    const grouped: Record<string, number> = {};
+    leads.forEach(c => {
+      const st = c.contactStatus || "new";
+      grouped[st] = (grouped[st] || 0) + 1;
+    });
+    return Object.entries(grouped)
+      .map(([key, count]) => ({ name: contactStatusLabels[key] || key, count }))
+      .filter(d => d.count > 0);
+  })() : [];
+
+  const sourceData = leads.length > 0 ? (() => {
+    const grouped: Record<string, number> = {};
+    leads.forEach(c => {
+      const s = c.source || "other";
+      grouped[s] = (grouped[s] || 0) + 1;
+    });
+    return Object.entries(grouped)
+      .map(([key, count]) => ({ name: sourceLabels[key] || key, value: count }))
+      .filter(d => d.value > 0);
+  })() : [];
 
   const recentTasks = tasksData
     ?.filter(t => t.status !== "completed")
@@ -160,6 +238,120 @@ export default function Dashboard() {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני לקוחות</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Lead Management Section */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <UserPlus className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+            <p className="text-xs text-muted-foreground">לידים חדשים היום</p>
+            <p className="text-xl font-bold" data-testid="text-new-leads-today">{newLeadsToday}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <PhoneOff className="w-5 h-5 mx-auto mb-1 text-amber-500" />
+            <p className="text-xs text-muted-foreground">לידים ללא מענה</p>
+            <p className="text-xl font-bold" data-testid="text-leads-no-answer">{leadsNoAnswer}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Phone className="w-5 h-5 mx-auto mb-1 text-orange-500" />
+            <p className="text-xs text-muted-foreground">3+ ניסיונות</p>
+            <p className="text-xl font-bold" data-testid="text-leads-three-plus">{leadsThreePlus}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Clock className="w-5 h-5 mx-auto mb-1 text-cyan-500" />
+            <p className="text-xs text-muted-foreground">זמן תגובה ממוצע</p>
+            <p className="text-xl font-bold" data-testid="text-avg-response">{avgResponseHours > 0 ? `${avgResponseHours} שע'` : "-"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <TrendingUp className="w-5 h-5 mx-auto mb-1 text-emerald-500" />
+            <p className="text-xs text-muted-foreground">אחוז סגירה</p>
+            <p className="text-xl font-bold" data-testid="text-closing-rate">{closingRate}%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Users className="w-5 h-5 mx-auto mb-1 text-violet-500" />
+            <p className="text-xs text-muted-foreground">סה״כ לידים</p>
+            <p className="text-xl font-bold" data-testid="text-total-leads-count">{totalLeadsAll}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <h3 className="text-sm font-semibold" data-testid="text-chart-lead-funnel">לידים לפי סטטוס קשר</h3>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {contactFunnelData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={contactFunnelData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "6px",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="count" fill="hsl(195, 85%, 38%)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני לידים</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <h3 className="text-sm font-semibold" data-testid="text-chart-lead-source">מקור לידים</h3>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {sourceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={sourceData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={95}
+                    paddingAngle={4}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                  >
+                    {sourceData.map((_, index) => (
+                      <Cell key={`cell-src-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "6px",
+                      fontSize: 12,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני מקורות</div>
             )}
           </CardContent>
         </Card>

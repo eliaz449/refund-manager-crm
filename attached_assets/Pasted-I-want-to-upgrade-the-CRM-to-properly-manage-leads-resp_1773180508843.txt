@@ -1,0 +1,124 @@
+I want to upgrade the CRM to properly manage leads, response tracking, and follow-up attempts.
+
+IMPORTANT:
+- Do not break existing functionality
+- Do not remove existing client data
+- Keep Hebrew UI
+- Extend the system carefully
+
+================================
+1. LEAD RESPONSE TRACKING
+================================
+
+Add the following fields to each lead/client:
+
+lead_created_at
+first_contact_at
+last_contact_at
+contact_attempts
+contact_status
+
+When a lead is created:
+lead_created_at = current time
+contact_attempts = 0
+first_contact_at = null
+contact_status = "חדש"
+
+================================
+2. CONTACT ATTEMPTS SYSTEM
+================================
+
+Add a quick action button "ניסיון התקשרות".
+
+Each time it is clicked:
+
+contact_attempts += 1
+last_contact_at = current time
+
+Automatically update contact_status:
+
+1 → אין מענה 1
+2 → אין מענה 2
+3 → אין מענה 3
+4 → אין מענה 4
+5 → אין מענה 5
+6 → אין מענה 6
+
+Allow manual change to:
+
+דיברנו
+שלח מסמכים
+בתהליך
+נסגר
+לא רלוונטי
+
+================================
+3. RESPONSE TIME TRACKING
+================================
+
+When status changes to "דיברנו":
+
+if first_contact_at is empty:
+set first_contact_at = current time
+
+================================
+4. LEAD DASHBOARD
+================================
+
+Create a dashboard widget showing:
+
+לידים חדשים היום
+לידים ללא מענה
+לידים עם 3+ ניסיונות
+זמן תגובה ממוצע
+אחוז סגירה
+מקור לידים
+
+Use lead_created_at and first_contact_at to calculate response time.
+
+================================
+5. REFUND PROCESS STAGE
+================================
+
+Add a field:
+
+refund_stage
+
+Options:
+
+פרטים התקבלו
+מחכים למסמכים
+בדיקת מסמכים
+הוגש למס הכנסה
+בטיפול
+אושר
+שולם
+
+Display it clearly in the client profile.
+
+================================
+6. PREPARE SYSTEM FOR FUTURE ANALYTICS
+================================
+
+Ensure these fields exist and are stored properly:
+
+lead_source
+recommended_by
+lead_created_at
+first_contact_at
+closed_date
+refund_stage
+
+These will be used later for analytics.
+
+================================
+7. VALIDATION
+================================
+
+Verify:
+
+new leads still enter the system
+existing clients remain intact
+contact attempts work
+dashboard loads correctly
+timestamps are stored correctly

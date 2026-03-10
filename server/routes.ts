@@ -51,6 +51,28 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  app.post("/api/clients/:id/contact-attempt", requireAuth, async (req, res) => {
+    const client = await storage.getClient(req.params.id);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const newAttempts = (client.contactAttempts || 0) + 1;
+    const now = new Date();
+    const statusMap: Record<number, string> = {
+      1: "no_answer_1", 2: "no_answer_2", 3: "no_answer_3",
+      4: "no_answer_4", 5: "no_answer_5", 6: "no_answer_6",
+    };
+    const newContactStatus = statusMap[newAttempts] || "no_answer_6";
+
+    const updateData: Record<string, any> = {
+      contactAttempts: newAttempts,
+      lastContactAt: now,
+      contactStatus: newContactStatus,
+    };
+
+    const updated = await storage.updateClient(req.params.id, updateData);
+    res.json(updated);
+  });
+
   app.delete("/api/clients/:id", requireAuth, async (req, res) => {
     await storage.deleteClient(req.params.id);
     res.status(204).send();

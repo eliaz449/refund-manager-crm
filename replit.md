@@ -115,7 +115,13 @@ All endpoints prefixed with `/api/`:
 - Dashboard with KPI stats and charts (Recharts)
 - Secure authentication with session-based login for two admin users
 - Client management with full CRUD, search, filters
-- Client detail page is the central workspace (unified scroll: Details, Notes History, Cases, Tasks, Payments)
+- Client detail page is the central workspace (unified scroll: Contact Tracking, Details, Notes History, Cases, Tasks, Payments)
+- Lead management: contactStatus tracking (חדש→אין מענה 1-6→דיברנו→שלח מסמכים→בתהליך→נסגר→לא רלוונטי)
+- Contact attempt quick action button (increments counter, updates lastContactAt, auto-sets contactStatus)
+- When "דיברנו" is selected: auto-sets firstContactAt if not already set
+- When "לא רלוונטי" is selected (contact or process status): shows reason dialog, saves reason as client note
+- Refund stage tracking (פרטים התקבלו→מחכים למסמכים→בדיקת מסמכים→הוגש למס הכנסה→בטיפול→אושר→שולם)
+- Lead dashboard: stats (new today, no answer, 3+, avg response time, closing rate), funnel chart, source chart — scoped to leads only
 - Inline case/task/payment creation from client detail page
 - Notes history per client with add/edit/delete
 - Client pricing fields (percentage, fixed, hourly)

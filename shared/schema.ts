@@ -16,6 +16,14 @@ export const leadStatusEnum = pgEnum("lead_status", [
 ]);
 export const sourceEnum = pgEnum("source", ["referral", "website", "social_media", "direct", "other", "recommended"]);
 export const pricingTypeEnum = pgEnum("pricing_type", ["percentage", "fixed", "hourly"]);
+export const contactStatusEnum = pgEnum("contact_status", [
+  "new", "no_answer_1", "no_answer_2", "no_answer_3", "no_answer_4", "no_answer_5", "no_answer_6",
+  "talked", "sent_documents", "in_process", "closed", "not_relevant"
+]);
+export const refundStageEnum = pgEnum("refund_stage", [
+  "details_received", "waiting_documents", "document_review",
+  "submitted_to_tax", "in_treatment", "approved", "paid"
+]);
 export const formTypeEnum = pgEnum("form_type", ["135", "1301", "other"]);
 export const serviceTypeEnum = pgEnum("service_type", [
   "tax_refund", "bookkeeping", "annual_report", "quarterly_report",
@@ -68,6 +76,12 @@ export const clients = pgTable("clients", {
   pricingType: pricingTypeEnum("pricing_type"),
   agreedPercentage: numeric("agreed_percentage"),
   agreedFixedAmount: numeric("agreed_fixed_amount"),
+  contactStatus: contactStatusEnum("contact_status").default("new"),
+  contactAttempts: integer("contact_attempts").default(0),
+  firstContactAt: timestamp("first_contact_at"),
+  lastContactAt: timestamp("last_contact_at"),
+  closedDate: date("closed_date"),
+  refundStage: refundStageEnum("refund_stage"),
   onboardingDate: date("onboarding_date"),
   lastCallDate: date("last_call_date"),
   assignedAccountantId: varchar("assigned_accountant_id"),
