@@ -97,13 +97,22 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/auth/login", (req, res, next) => {
+    console.log(`[Auth] Login attempt for: ${req.body?.email}`);
     passport.authenticate("local", (err: any, user: Express.User | false, info: any) => {
-      if (err) return next(err);
+      if (err) {
+        console.error("[Auth] Login error:", err);
+        return next(err);
+      }
       if (!user) {
+        console.log(`[Auth] Login failed for: ${req.body?.email} - ${info?.message}`);
         return res.status(401).json({ message: info?.message || "אימייל או סיסמה שגויים" });
       }
       req.logIn(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.error("[Auth] Session save error:", err);
+          return next(err);
+        }
+        console.log(`[Auth] Login success for: ${user.email}`);
         res.json({ user });
       });
     })(req, res, next);
