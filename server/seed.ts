@@ -6,16 +6,16 @@ import bcrypt from "bcryptjs";
 const INITIAL_PASSWORD = process.env.INITIAL_ADMIN_PASSWORD || "TaxPro2026!";
 
 async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant") {
+  const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
   const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
   if (existing.length > 0) {
-    if (existing[0].passwordHash === "hashed" || !existing[0].passwordHash.startsWith("$2")) {
-      const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
+    const matches = await bcrypt.compare(INITIAL_PASSWORD, existing[0].passwordHash);
+    if (!matches) {
       await db.update(users).set({ passwordHash }).where(eq(users.id, existing[0].id));
-      console.log(`Fixed password hash for: ${fullName} (${email})`);
+      console.log(`Reset password for: ${fullName} (${email})`);
     }
     return existing[0];
   }
-  const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
   const [created] = await db.insert(users).values({
     fullName,
     email: email.toLowerCase(),
