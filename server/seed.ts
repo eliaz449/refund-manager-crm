@@ -7,7 +7,14 @@ const INITIAL_PASSWORD = process.env.INITIAL_ADMIN_PASSWORD || "TaxPro2026!";
 
 async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant") {
   const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
-  if (existing.length > 0) return existing[0];
+  if (existing.length > 0) {
+    if (existing[0].passwordHash === "hashed" || !existing[0].passwordHash.startsWith("$2")) {
+      const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
+      await db.update(users).set({ passwordHash }).where(eq(users.id, existing[0].id));
+      console.log(`Fixed password hash for: ${fullName} (${email})`);
+    }
+    return existing[0];
+  }
   const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
   const [created] = await db.insert(users).values({
     fullName,
@@ -20,6 +27,15 @@ async function ensureUser(fullName: string, email: string, role: "admin" | "user
 }
 
 export async function seedDatabase() {
+  await db.execute(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`);
+
   const adminUser = await ensureUser("Eliezer Asulin", "eliazasulin@gmail.com", "admin");
   const adminUser2 = await ensureUser("Eden Asulin", "edenabergel94@gmail.com", "admin");
 
