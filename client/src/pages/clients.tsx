@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import { Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock } from "lucide-react";
+import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,7 @@ export default function Clients() {
                   <TableHead>סטטוס</TableHead>
                   <TableHead className="hidden lg:table-cell">תהליך</TableHead>
                   <TableHead className="hidden lg:table-cell">מקור</TableHead>
+                  <TableHead className="hidden md:table-cell">תאריך יצירה</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -251,6 +253,15 @@ export default function Clients() {
                          client.source === "direct" ? "ישיר" :
                          client.source === "other" ? "אחר" : client.source}
                       </span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex items-start gap-1.5" data-testid={`text-created-at-${client.id}`}>
+                        <Clock className="w-3 h-3 mt-0.5 text-muted-foreground flex-shrink-0" />
+                        <div>
+                          <p className="text-xs whitespace-nowrap">{formatDateTime(client.createdAt)}</p>
+                          <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

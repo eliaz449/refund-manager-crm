@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
-import { ArrowRight, Phone, Mail, MapPin, FileText, Briefcase, CheckSquare, CreditCard, Save } from "lucide-react";
+import { ArrowRight, Phone, Mail, MapPin, FileText, Briefcase, CheckSquare, CreditCard, Save, Clock } from "lucide-react";
+import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,7 +121,14 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-detail-created-at">
+          <Clock className="w-4 h-4" />
+          <span>{formatDateTime(client.createdAt)}</span>
+          {relativeTime(client.createdAt) && (
+            <span className="text-xs">({relativeTime(client.createdAt)})</span>
+          )}
+        </div>
         {client.phone && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Phone className="w-4 h-4" />{client.phone}
