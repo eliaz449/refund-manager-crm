@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Users, Briefcase, CheckSquare, CreditCard,
-  ArrowLeftRight, Building2
+  ArrowLeftRight, Building2, LogOut
 } from "lucide-react";
 import {
   Sidebar,
@@ -15,6 +15,8 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
 
 const mainItems = [
   { title: "לוח בקרה", url: "/", icon: LayoutDashboard },
@@ -27,6 +29,7 @@ const mainItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <Sidebar side="right">
@@ -71,7 +74,24 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
+        {user && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground truncate" data-testid="text-sidebar-user">
+              {user.fullName}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 flex-shrink-0"
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
         <div className="text-xs text-muted-foreground">
           TaxPro CRM v1.0
         </div>

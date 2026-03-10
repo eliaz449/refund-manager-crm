@@ -18,25 +18,42 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 - **Frontend**: React + TypeScript + Vite + TailwindCSS + Shadcn UI
 - **Backend**: Express.js + TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
+- **Auth**: Passport.js (local strategy) + express-session + connect-pg-simple + bcryptjs
 - **State Management**: TanStack Query (React Query v5)
 - **Routing**: Wouter
 
 ## Project Structure
 
 ### Backend
-- `server/index.ts` - Express server entry point
-- `server/routes.ts` - REST API routes for all entities
+- `server/index.ts` - Express server entry point (includes session + auth setup)
+- `server/auth.ts` - Authentication module (Passport.js, session, login/logout/me/change-password routes)
+- `server/routes.ts` - REST API routes for all entities (all protected by `requireAuth` middleware)
 - `server/storage.ts` - Database storage layer (IStorage interface + DatabaseStorage implementation)
 - `server/db.ts` - Database connection (Drizzle + pg)
-- `server/seed.ts` - Database seeding with realistic data
+- `server/seed.ts` - Database seeding with realistic data + real user account creation
 
 ### Frontend
-- `client/src/App.tsx` - Root app with sidebar layout and routing
+- `client/src/App.tsx` - Root app with auth gate, sidebar layout and routing
+- `client/src/pages/login.tsx` - Login page (Hebrew, RTL, email + password)
 - `client/src/pages/` - Page components (Dashboard, Clients, Cases, Tasks, Payments, Transactions)
-- `client/src/components/` - Reusable components (AppSidebar, StatCard, StatusBadge, PageHeader, EmptyState)
+- `client/src/hooks/use-auth.ts` - Auth hook (login, logout, changePassword, user state)
+- `client/src/components/` - Reusable components (AppSidebar with logout, StatCard, StatusBadge, PageHeader, EmptyState)
 
 ### Shared
 - `shared/schema.ts` - Drizzle schema definitions, Zod insert schemas, TypeScript types
+
+## Authentication System
+- **Login**: `POST /api/auth/login` (email + password, returns user object)
+- **Logout**: `POST /api/auth/logout` (clears session)
+- **Session check**: `GET /api/auth/me` (returns current user or 401)
+- **Change password**: `POST /api/auth/change-password` (requires currentPassword + newPassword)
+- **Session storage**: PostgreSQL via `connect-pg-simple` (auto-creates `session` table)
+- **Session secret**: `SESSION_SECRET` env var
+- **Password hashing**: bcryptjs with 12 salt rounds
+- **Protected routes**: All `/api/*` routes (except `/api/health`, `/api/auth/*`, `/api/webhooks/*`) require authentication
+- **Frontend**: `useAuth` hook checks `/api/auth/me`; shows login page if not authenticated
+- **Users**: Two admin accounts (Eliezer Asulin + Eden Asulin) created in seed.ts
+- **Default password**: `TaxPro2026!` (should be changed after first login)
 
 ## Database Entities
 - **Users** - Admin, User, Accountant roles
@@ -55,7 +72,8 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 
 ## API Endpoints
 All endpoints prefixed with `/api/`:
-- `GET /api/health` - Health check endpoint
+- `GET /api/health` - Health check endpoint (no auth required)
+- Auth: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/change-password`
 - `GET/POST /clients`, `GET/PATCH/DELETE /clients/:id`
 - `GET/POST /cases`, `GET/PATCH/DELETE /cases/:id`
 - `GET/POST /tasks`, `GET/PATCH/DELETE /tasks/:id`
@@ -64,7 +82,7 @@ All endpoints prefixed with `/api/`:
 - `GET/POST /communications`
 - `GET /dashboard/stats`
 - `GET /users`
-- `POST /webhooks/landy` - Landy lead intake webhook
+- `POST /webhooks/landy` - Landy lead intake webhook (no session auth — uses signature)
 
 ## Landy Webhook Integration
 - **Route**: `POST /api/webhooks/landy` (in `server/routes.ts`)
@@ -86,6 +104,7 @@ All endpoints prefixed with `/api/`:
 
 ## Key Features
 - Dashboard with KPI stats and charts (Recharts)
+- Secure authentication with session-based login for two admin users
 - Client management with full CRUD, search, filters
 - Client detail page with tabs (Details, Cases, Tasks, Payments)
 - Case management with service types and status tracking

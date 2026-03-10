@@ -1,31 +1,30 @@
 import { db } from "./db";
 import { users, clients, cases, tasks, payments, transactions } from "@shared/schema";
 import { eq, count } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+
+const INITIAL_PASSWORD = process.env.INITIAL_ADMIN_PASSWORD || "TaxPro2026!";
+
+async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant") {
+  const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+  if (existing.length > 0) return existing[0];
+  const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
+  const [created] = await db.insert(users).values({
+    fullName,
+    email: email.toLowerCase(),
+    passwordHash,
+    role,
+  }).returning();
+  console.log(`Created user: ${fullName} (${email}) with role: ${role}`);
+  return created;
+}
 
 export async function seedDatabase() {
+  const adminUser = await ensureUser("Eliezer Asulin", "eliazasulin@gmail.com", "admin");
+  const adminUser2 = await ensureUser("Eden Asulin", "edenabergel94@gmail.com", "admin");
+
   const [existing] = await db.select({ count: count() }).from(clients);
   if (existing.count > 0) return;
-
-  const [adminUser] = await db.insert(users).values({
-    fullName: "David Cohen",
-    email: "david@taxfirm.com",
-    passwordHash: "hashed",
-    role: "admin",
-  }).returning();
-
-  const [accountant1] = await db.insert(users).values({
-    fullName: "Sarah Levy",
-    email: "sarah@taxfirm.com",
-    passwordHash: "hashed",
-    role: "accountant",
-  }).returning();
-
-  const [accountant2] = await db.insert(users).values({
-    fullName: "Michael Ben-Ari",
-    email: "michael@taxfirm.com",
-    passwordHash: "hashed",
-    role: "accountant",
-  }).returning();
 
   const clientsData = [
     {
@@ -41,7 +40,7 @@ export async function seedDatabase() {
       source: "referral" as const,
       notes: "Referred by Moshe. Needs help with 2024 tax refund.",
       onboardingDate: "2025-01-15",
-      assignedAccountantId: accountant1.id,
+      assignedAccountantId: adminUser.id,
       clientDeclarationSigned: true,
       createdBy: adminUser.email,
     },
@@ -58,7 +57,7 @@ export async function seedDatabase() {
       source: "website" as const,
       notes: "Small business owner. Monthly bookkeeping + annual report.",
       onboardingDate: "2024-11-01",
-      assignedAccountantId: accountant2.id,
+      assignedAccountantId: adminUser2.id,
       clientDeclarationSigned: true,
       createdBy: adminUser.email,
     },
@@ -88,7 +87,7 @@ export async function seedDatabase() {
       source: "direct" as const,
       notes: "Tech freelancer. Quarterly VAT reports.",
       onboardingDate: "2024-06-15",
-      assignedAccountantId: accountant1.id,
+      assignedAccountantId: adminUser.id,
       clientDeclarationSigned: true,
       createdBy: adminUser.email,
     },
@@ -105,7 +104,7 @@ export async function seedDatabase() {
       source: "referral" as const,
       notes: "2023 case completed. May return for 2024.",
       onboardingDate: "2023-03-01",
-      assignedAccountantId: accountant2.id,
+      assignedAccountantId: adminUser2.id,
       clientDeclarationSigned: true,
       createdBy: adminUser.email,
     },
@@ -122,7 +121,7 @@ export async function seedDatabase() {
       refundEstimate: "8500",
       status: "in_progress" as const,
       priority: "high" as const,
-      assignedTo: accountant1.id,
+      assignedTo: adminUser.id,
       notes: "Multiple employers in 2024. Expected refund ~8,500 ILS.",
       createdBy: adminUser.email,
     },
@@ -132,7 +131,7 @@ export async function seedDatabase() {
       serviceType: "bookkeeping" as const,
       status: "in_progress" as const,
       priority: "medium" as const,
-      assignedTo: accountant2.id,
+      assignedTo: adminUser2.id,
       notes: "Monthly bookkeeping for small business.",
       hourlyRate: "250",
       createdBy: adminUser.email,
@@ -143,7 +142,7 @@ export async function seedDatabase() {
       serviceType: "annual_report" as const,
       status: "document_collection" as const,
       priority: "high" as const,
-      assignedTo: accountant2.id,
+      assignedTo: adminUser2.id,
       notes: "Annual financial report needed by March.",
       createdBy: adminUser.email,
     },
@@ -153,7 +152,7 @@ export async function seedDatabase() {
       serviceType: "vat_report" as const,
       status: "submitted" as const,
       priority: "medium" as const,
-      assignedTo: accountant1.id,
+      assignedTo: adminUser.id,
       submissionDate: "2025-02-15",
       createdBy: adminUser.email,
     },
@@ -166,7 +165,7 @@ export async function seedDatabase() {
       status: "completed" as const,
       approvalStatus: "approved" as const,
       priority: "low" as const,
-      assignedTo: accountant2.id,
+      assignedTo: adminUser2.id,
       totalPaid: "1500",
       createdBy: adminUser.email,
     },
@@ -179,7 +178,7 @@ export async function seedDatabase() {
       taskName: "Collect 2024 payslips from Yael",
       clientId: createdClients[0].id,
       caseId: createdCases[0].id,
-      assignedTo: accountant1.id,
+      assignedTo: adminUser.id,
       dueDate: "2025-03-20",
       status: "in_progress" as const,
       priority: "high" as const,
@@ -190,7 +189,7 @@ export async function seedDatabase() {
       taskName: "Prepare VAT report Q1 for Eitan",
       clientId: createdClients[3].id,
       caseId: createdCases[3].id,
-      assignedTo: accountant1.id,
+      assignedTo: adminUser.id,
       dueDate: "2025-04-15",
       status: "not_started" as const,
       priority: "high" as const,
@@ -201,7 +200,7 @@ export async function seedDatabase() {
       taskName: "Review Avi's monthly expenses",
       clientId: createdClients[1].id,
       caseId: createdCases[1].id,
-      assignedTo: accountant2.id,
+      assignedTo: adminUser2.id,
       dueDate: "2025-03-31",
       status: "not_started" as const,
       priority: "medium" as const,
@@ -222,7 +221,7 @@ export async function seedDatabase() {
       taskName: "File annual report for Avi",
       clientId: createdClients[1].id,
       caseId: createdCases[2].id,
-      assignedTo: accountant2.id,
+      assignedTo: adminUser2.id,
       dueDate: "2025-03-30",
       status: "in_progress" as const,
       priority: "high" as const,
@@ -233,7 +232,7 @@ export async function seedDatabase() {
       taskName: "Send closing documents to Rivka",
       clientId: createdClients[4].id,
       caseId: createdCases[4].id,
-      assignedTo: accountant2.id,
+      assignedTo: adminUser2.id,
       dueDate: "2025-03-15",
       status: "completed" as const,
       priority: "low" as const,
