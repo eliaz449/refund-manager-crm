@@ -115,14 +115,13 @@ All endpoints prefixed with `/api/`:
 - Dashboard with KPI stats and charts (Recharts)
 - Secure authentication with session-based login for two admin users
 - Client management with full CRUD, search, filters
-- Client detail page with unified scroll layout (Details, Notes History, Cases, Tasks, Payments)
+- Client detail page is the central workspace (unified scroll: Details, Notes History, Cases, Tasks, Payments)
 - Inline case/task/payment creation from client detail page
 - Notes history per client with add/edit/delete
 - Client pricing fields (percentage, fixed, hourly)
 - "Recommended" source option with recommender name field
-- Case management with service types and status tracking
-- Task management with priority, category, and completion
-- Payment recording and tracking
+- Cases, Tasks, Payments managed exclusively from within client pages (no standalone top-level pages)
+- Old routes (/cases, /tasks, /payments) redirect to /clients for safety
 - Transaction ledger with income/expense tracking
 - Landy webhook for automatic lead intake with dedup
 - Seed data with 5 realistic clients, 5 cases, 6 tasks, 5 payments, 6 transactions

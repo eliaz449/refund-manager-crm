@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import {
-  LayoutDashboard, Users, Briefcase, CheckSquare, CreditCard,
+  LayoutDashboard, Users,
   ArrowLeftRight, Building2, LogOut, Settings
 } from "lucide-react";
 import {
@@ -21,9 +21,6 @@ import { Button } from "@/components/ui/button";
 const mainItems = [
   { title: "לוח בקרה", url: "/", icon: LayoutDashboard },
   { title: "לקוחות", url: "/clients", icon: Users },
-  { title: "תיקים", url: "/cases", icon: Briefcase },
-  { title: "משימות", url: "/tasks", icon: CheckSquare },
-  { title: "תשלומים", url: "/payments", icon: CreditCard },
   { title: "תנועות", url: "/transactions", icon: ArrowLeftRight },
 ];
 

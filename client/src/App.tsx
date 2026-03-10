@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,9 +10,6 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Clients from "@/pages/clients";
 import ClientDetail from "@/pages/client-detail";
-import Cases from "@/pages/cases";
-import Tasks from "@/pages/tasks";
-import Payments from "@/pages/payments";
 import Transactions from "@/pages/transactions";
 import Settings from "@/pages/settings";
 import LoginPage from "@/pages/login";
@@ -24,9 +21,9 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/clients" component={Clients} />
       <Route path="/clients/:id" component={ClientDetail} />
-      <Route path="/cases" component={Cases} />
-      <Route path="/tasks" component={Tasks} />
-      <Route path="/payments" component={Payments} />
+      <Route path="/cases"><Redirect to="/clients" /></Route>
+      <Route path="/tasks"><Redirect to="/clients" /></Route>
+      <Route path="/payments"><Redirect to="/clients" /></Route>
       <Route path="/transactions" component={Transactions} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

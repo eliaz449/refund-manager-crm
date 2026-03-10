@@ -1,0 +1,114 @@
+I want to simplify the CRM structure and remove duplicate navigation/pages.
+
+IMPORTANT:
+- Do not break any existing functionality
+- Do not delete any database data
+- Do not remove any core logic behind cases, tasks, or payments
+- Only simplify the UI/navigation and keep all working actions available from inside the Client page
+- Preserve the current Hebrew design language and existing visual style
+
+Here is the required change:
+
+==================================================
+1. REMOVE DUPLICATE TOP-LEVEL SECTIONS
+==================================================
+
+I want to completely remove the separate top-level navigation/pages for:
+
+- Cases
+- Tasks
+- Payments
+
+Reason:
+All of these are now managed from inside the Client page, so having them both as standalone pages and inside the client creates duplication and unnecessary complexity.
+
+==================================================
+2. KEEP ALL FUNCTIONALITY INSIDE CLIENT PAGE
+==================================================
+
+Do NOT remove the actual entities or backend logic for:
+- cases
+- tasks
+- payments
+
+They must still exist in the system and database.
+
+But from the UI perspective:
+- all case management should happen inside the client page
+- all task management should happen inside the client page
+- all payment management should happen inside the client page
+
+Requirements:
+- Remove these sections from the main sidebar / main navigation
+- Remove or hide the standalone pages from normal user navigation
+- Keep all create/edit/delete functionality available inside the client page
+- Keep all linking between client, case, task, and payment intact
+
+==================================================
+3. CLIENT PAGE SHOULD BECOME THE MAIN WORKSPACE
+==================================================
+
+The Client page should remain the central workspace for all work.
+
+Inside each client page, keep the sections:
+- Client details
+- Notes
+- Cases
+- Tasks
+- Payments
+- Any other relevant related sections
+
+Everything should stay on one long scrollable page, with clear section headers.
+
+==================================================
+4. OPTIONAL: HANDLE OLD ROUTES SAFELY
+==================================================
+
+If old direct routes for /cases, /tasks, /payments still exist in the codebase:
+
+- do not break the application
+- either remove them safely from the sidebar/navigation
+- or redirect them appropriately
+- or keep them internal-only if needed for compatibility
+
+But regular users should no longer see them as main sections.
+
+==================================================
+5. KEEP REPORTING / DATA AGGREGATION INTACT
+==================================================
+
+Even though cases/tasks/payments are removed from top-level navigation,
+all analytics, dashboard logic, counts, reports, and relationships must continue to work.
+
+Do not break:
+- dashboard counts
+- recent payments widget
+- task automation
+- payment summaries
+- case statistics
+
+==================================================
+6. VALIDATION BEFORE FINISHING
+==================================================
+
+Before finishing, verify:
+
+1. Clients page still works
+2. Client profile still loads correctly
+3. Cases can still be created/edited from inside client page
+4. Tasks can still be created/edited from inside client page
+5. Payments can still be created/edited from inside client page
+6. No existing data is lost
+7. Sidebar/navigation is cleaner and no longer shows duplicate sections
+8. Authentication still works
+9. Landy webhook still works
+10. Dashboard still works
+
+==================================================
+7. WHAT I WANT BACK
+==================================================
+
+After implementation, tell me:
+- exactly which pages/navigation items were removed or hidden
+- whether any old routes were preserved or redirected
+- confirm that all related functionality now lives inside the client page only
