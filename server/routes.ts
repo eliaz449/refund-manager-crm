@@ -44,7 +44,10 @@ export async function registerRoutes(
   });
 
   app.patch("/api/clients/:id", requireAuth, async (req, res) => {
-    const parsed = partialClientSchema.safeParse(req.body);
+    const body = { ...req.body };
+    if (typeof body.firstContactAt === "string") body.firstContactAt = new Date(body.firstContactAt);
+    if (typeof body.lastContactAt === "string") body.lastContactAt = new Date(body.lastContactAt);
+    const parsed = partialClientSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const updated = await storage.updateClient(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Client not found" });

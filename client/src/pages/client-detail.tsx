@@ -249,7 +249,7 @@ export default function ClientDetail() {
     }
     const updatePayload: Record<string, any> = { contactStatus: newStatus };
     if (newStatus === "talked" && !client?.firstContactAt) {
-      updatePayload.firstContactAt = new Date();
+      updatePayload.firstContactAt = new Date().toISOString();
     }
     if (newStatus === "closed") {
       updatePayload.closedDate = new Date().toISOString().split("T")[0];
@@ -277,8 +277,7 @@ export default function ClientDetail() {
     }
     updateMutation.mutate(updatePayload);
     if (notRelevantReason.trim()) {
-      const prefix = notRelevantSource === "contactStatus" ? "סיבה (סטטוס קשר)" : "סיבה (סטטוס תהליך)";
-      createNoteMutation.mutate(`${prefix}: ${notRelevantReason.trim()}`);
+      createNoteMutation.mutate(`לא רלוונטי - ${notRelevantReason.trim()}`);
     }
     setShowNotRelevantDialog(false);
     setNotRelevantReason("");
