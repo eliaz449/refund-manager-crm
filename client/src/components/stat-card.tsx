@@ -12,11 +12,11 @@ interface StatCardProps {
 export function StatCard({ title, value, icon: Icon, description }: StatCardProps) {
   return (
     <Card data-testid={`stat-card-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-      <CardContent className="p-5">
+      <CardContent className="p-3 sm:p-5">
         <div className="flex items-center justify-between gap-2">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-            <p className="text-2xl font-bold tracking-tight">{value}</p>
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">{title}</p>
+            <p className="text-lg sm:text-2xl font-bold tracking-tight truncate">{value}</p>
             {description && (
               <p className="text-xs text-muted-foreground">{description}</p>
             )}

@@ -147,11 +147,11 @@ export default function Dashboard() {
 
   if (statsLoading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         <PageHeader title="לוח בקרה" description="סקירה כללית של ביצועי המשרד" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}><CardContent className="p-5"><Skeleton className="h-16 w-full" /></CardContent></Card>
+            <Card key={i}><CardContent className="p-4 sm:p-5"><Skeleton className="h-16 w-full" /></CardContent></Card>
           ))}
         </div>
       </div>
@@ -159,10 +159,10 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-auto h-full">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-auto h-full">
       <PageHeader title="לוח בקרה" description="סקירה כללית של ביצועי המשרד" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         <StatCard title="סה״כ לידים" value={stats?.totalLeads ?? 0} icon={UserPlus} />
         <StatCard title="לקוחות פעילים" value={stats?.activeClients ?? 0} icon={Users} />
         <StatCard title="תיקים פתוחים" value={stats?.openCases ?? 0} icon={Briefcase} />
@@ -175,17 +175,17 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-2">
             <h3 className="text-sm font-semibold" data-testid="text-chart-cases">תיקים לפי סטטוס</h3>
           </CardHeader>
           <CardContent className="pt-0">
             {caseStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={220} className="sm:!h-[260px]">
                 <BarChart data={caseStatusData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip
                     contentStyle={{
@@ -199,7 +199,7 @@ export default function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני תיקים</div>
+              <div className="flex items-center justify-center h-[220px] sm:h-[260px] text-sm text-muted-foreground">אין נתוני תיקים</div>
             )}
           </CardContent>
         </Card>
@@ -210,14 +210,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="pt-0">
             {clientStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={220} className="sm:!h-[260px]">
                 <PieChart>
                   <Pie
                     data={clientStatusData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={95}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={4}
                     dataKey="value"
                     label={({ name, value }) => `${name}: ${value}`}
@@ -237,69 +237,68 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני לקוחות</div>
+              <div className="flex items-center justify-center h-[220px] sm:h-[260px] text-sm text-muted-foreground">אין נתוני לקוחות</div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Lead Management Section */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 sm:p-4 text-center">
             <UserPlus className="w-5 h-5 mx-auto mb-1 text-blue-500" />
             <p className="text-xs text-muted-foreground">לידים חדשים היום</p>
-            <p className="text-xl font-bold" data-testid="text-new-leads-today">{newLeadsToday}</p>
+            <p className="text-lg sm:text-xl font-bold" data-testid="text-new-leads-today">{newLeadsToday}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 sm:p-4 text-center">
             <PhoneOff className="w-5 h-5 mx-auto mb-1 text-amber-500" />
             <p className="text-xs text-muted-foreground">לידים ללא מענה</p>
-            <p className="text-xl font-bold" data-testid="text-leads-no-answer">{leadsNoAnswer}</p>
+            <p className="text-lg sm:text-xl font-bold" data-testid="text-leads-no-answer">{leadsNoAnswer}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 sm:p-4 text-center">
             <Phone className="w-5 h-5 mx-auto mb-1 text-orange-500" />
             <p className="text-xs text-muted-foreground">3+ ניסיונות</p>
-            <p className="text-xl font-bold" data-testid="text-leads-three-plus">{leadsThreePlus}</p>
+            <p className="text-lg sm:text-xl font-bold" data-testid="text-leads-three-plus">{leadsThreePlus}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 sm:p-4 text-center">
             <Clock className="w-5 h-5 mx-auto mb-1 text-cyan-500" />
             <p className="text-xs text-muted-foreground">זמן תגובה ממוצע</p>
-            <p className="text-xl font-bold" data-testid="text-avg-response">{avgResponseHours > 0 ? `${avgResponseHours} שע'` : "-"}</p>
+            <p className="text-lg sm:text-xl font-bold" data-testid="text-avg-response">{avgResponseHours > 0 ? `${avgResponseHours} שע'` : "-"}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 sm:p-4 text-center">
             <TrendingUp className="w-5 h-5 mx-auto mb-1 text-emerald-500" />
             <p className="text-xs text-muted-foreground">אחוז סגירה</p>
-            <p className="text-xl font-bold" data-testid="text-closing-rate">{closingRate}%</p>
+            <p className="text-lg sm:text-xl font-bold" data-testid="text-closing-rate">{closingRate}%</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-3 sm:p-4 text-center">
             <Users className="w-5 h-5 mx-auto mb-1 text-violet-500" />
             <p className="text-xs text-muted-foreground">סה״כ לידים</p>
-            <p className="text-xl font-bold" data-testid="text-total-leads-count">{totalLeadsAll}</p>
+            <p className="text-lg sm:text-xl font-bold" data-testid="text-total-leads-count">{totalLeadsAll}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-2">
             <h3 className="text-sm font-semibold" data-testid="text-chart-lead-funnel">לידים לפי סטטוס קשר</h3>
           </CardHeader>
           <CardContent className="pt-0">
             {contactFunnelData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={220} className="sm:!h-[260px]">
                 <BarChart data={contactFunnelData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" angle={-20} textAnchor="end" height={50} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip
                     contentStyle={{
@@ -313,7 +312,7 @@ export default function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני לידים</div>
+              <div className="flex items-center justify-center h-[220px] sm:h-[260px] text-sm text-muted-foreground">אין נתוני לידים</div>
             )}
           </CardContent>
         </Card>
@@ -324,14 +323,14 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="pt-0">
             {sourceData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={220} className="sm:!h-[260px]">
                 <PieChart>
                   <Pie
                     data={sourceData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={95}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={4}
                     dataKey="value"
                     label={({ name, value }) => `${name}: ${value}`}
@@ -351,13 +350,13 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">אין נתוני מקורות</div>
+              <div className="flex items-center justify-center h-[220px] sm:h-[260px] text-sm text-muted-foreground">אין נתוני מקורות</div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-2">
             <h3 className="text-sm font-semibold" data-testid="text-pending-tasks">משימות ממתינות</h3>
@@ -370,7 +369,7 @@ export default function Dashboard() {
                     <p className="text-sm font-medium truncate">{task.taskName}</p>
                     <p className="text-xs text-muted-foreground">{task.dueDate ? `תאריך יעד: ${task.dueDate}` : "ללא תאריך יעד"}</p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 flex-wrap">
                     <StatusBadge status={task.priority} />
                     <StatusBadge status={task.status} />
                   </div>
@@ -397,15 +396,15 @@ export default function Dashboard() {
                   <div key={payment.id} className="flex items-center justify-between gap-2 py-2 border-b last:border-0" data-testid={`row-payment-${payment.id}`}>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate" data-testid={`text-payment-client-${payment.id}`}>{clientName}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                         <p className="text-xs text-muted-foreground">{formatCurrency(parseFloat(payment.amount))}</p>
-                        <span className="text-xs text-muted-foreground">·</span>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">·</span>
                         <p className="text-xs text-muted-foreground" data-testid={`text-payment-method-${payment.id}`}>{methodLabel}</p>
-                        <span className="text-xs text-muted-foreground">·</span>
-                        <p className="text-xs text-muted-foreground">{payment.paymentDate || "ללא תאריך"}</p>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">·</span>
+                        <p className="text-xs text-muted-foreground hidden sm:inline">{payment.paymentDate || "ללא תאריך"}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                       <Badge variant={isPartial ? "outline" : "secondary"} className="text-xs" data-testid={`badge-payment-type-${payment.id}`}>
                         {isPartial ? "חלקי" : "מלא"}
                       </Badge>

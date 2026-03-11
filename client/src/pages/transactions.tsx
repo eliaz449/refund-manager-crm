@@ -85,21 +85,21 @@ export default function Transactions() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-auto h-full">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-auto h-full">
       <PageHeader
         title="תנועות"
         description="מעקב הכנסות והוצאות"
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-transaction"><Plus className="w-4 h-4 ml-2" />הוסף תנועה</Button>
+              <Button className="w-full sm:w-auto" data-testid="button-add-transaction"><Plus className="w-4 h-4 ml-2" />הוסף תנועה</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>תנועה חדשה</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>לקוח *</Label>
                     <Select name="clientId" required>
@@ -122,7 +122,7 @@ export default function Transactions() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>סכום *</Label>
                     <Input name="amount" type="number" step="0.01" required data-testid="input-tx-amount" />
@@ -152,14 +152,14 @@ export default function Transactions() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard title="סה״כ הכנסות" value={formatCurrency(totalIncome)} icon={TrendingUp} />
         <StatCard title="סה״כ הוצאות" value={formatCurrency(totalExpense)} icon={TrendingDown} />
         <StatCard title="רווח נקי" value={formatCurrency(totalIncome - totalExpense)} icon={TrendingUp} />
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-3">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="חיפוש תנועות..."
@@ -170,7 +170,7 @@ export default function Transactions() {
           />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[140px]" data-testid="select-filter-tx-type">
+          <SelectTrigger className="w-full sm:w-[140px]" data-testid="select-filter-tx-type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -186,49 +186,90 @@ export default function Transactions() {
       ) : filtered.length === 0 ? (
         <EmptyState title="אין תנועות" description="רשום את התנועה הראשונה" />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>לקוח</TableHead>
-                  <TableHead>סוג</TableHead>
-                  <TableHead>סכום</TableHead>
-                  <TableHead className="hidden md:table-cell">קטגוריה</TableHead>
-                  <TableHead className="hidden md:table-cell">תאריך</TableHead>
-                  <TableHead className="hidden lg:table-cell">תיאור</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(t => (
-                  <TableRow key={t.id} data-testid={`row-tx-${t.id}`}>
-                    <TableCell className="text-sm font-medium">{clientMap.get(t.clientId) || "לא ידוע"}</TableCell>
-                    <TableCell><StatusBadge status={t.type} /></TableCell>
-                    <TableCell className={`text-sm font-semibold ${t.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                      {t.type === "income" ? "+" : "-"}{formatCurrency(parseFloat(t.amount))}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm">{t.category || "-"}</TableCell>
-                    <TableCell className="hidden md:table-cell text-sm">{t.transactionDate || "-"}</TableCell>
-                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground truncate max-w-[200px]">{t.description || "-"}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost"><MoreHorizontal className="w-4 h-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
-                            <Trash2 className="w-4 h-4 ml-2" />מחק
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+        <>
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>לקוח</TableHead>
+                    <TableHead>סוג</TableHead>
+                    <TableHead>סכום</TableHead>
+                    <TableHead>קטגוריה</TableHead>
+                    <TableHead>תאריך</TableHead>
+                    <TableHead className="hidden lg:table-cell">תיאור</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(t => (
+                    <TableRow key={t.id} data-testid={`row-tx-${t.id}`}>
+                      <TableCell className="text-sm font-medium">{clientMap.get(t.clientId) || "לא ידוע"}</TableCell>
+                      <TableCell><StatusBadge status={t.type} /></TableCell>
+                      <TableCell className={`text-sm font-semibold ${t.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                        {t.type === "income" ? "+" : "-"}{formatCurrency(parseFloat(t.amount))}
+                      </TableCell>
+                      <TableCell className="text-sm">{t.category || "-"}</TableCell>
+                      <TableCell className="text-sm">{t.transactionDate || "-"}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground truncate max-w-[200px]">{t.description || "-"}</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost"><MoreHorizontal className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
+                              <Trash2 className="w-4 h-4 ml-2" />מחק
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <div className="md:hidden space-y-3">
+            {filtered.map(t => (
+              <Card key={t.id} data-testid={`card-tx-${t.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-sm font-medium truncate">{clientMap.get(t.clientId) || "לא ידוע"}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <StatusBadge status={t.type} />
+                        <span className={`text-sm font-semibold ${t.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                          {t.type === "income" ? "+" : "-"}{formatCurrency(parseFloat(t.amount))}
+                        </span>
+                      </div>
+                      {t.category && (
+                        <p className="text-xs text-muted-foreground">{t.category}</p>
+                      )}
+                      {t.transactionDate && (
+                        <p className="text-xs text-muted-foreground">{t.transactionDate}</p>
+                      )}
+                      {t.description && (
+                        <p className="text-xs text-muted-foreground truncate">{t.description}</p>
+                      )}
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost"><MoreHorizontal className="w-4 h-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(t.id)}>
+                          <Trash2 className="w-4 h-4 ml-2" />מחק
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

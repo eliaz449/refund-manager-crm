@@ -318,7 +318,7 @@ export default function ClientDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -327,7 +327,7 @@ export default function ClientDetail() {
 
   if (!client) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <p className="text-muted-foreground">הלקוח לא נמצא</p>
         <Button variant="outline" onClick={() => setLocation("/clients")} className="mt-4">
           <ArrowRight className="w-4 h-4 ml-2" />חזרה ללקוחות
@@ -337,7 +337,7 @@ export default function ClientDetail() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-auto h-full">
+    <div className="p-4 sm:p-6 space-y-6 overflow-auto h-full">
       <div className="flex items-center gap-3">
         <Button size="icon" variant="ghost" onClick={() => setLocation("/clients")} data-testid="button-back">
           <ArrowRight className="w-4 h-4" />
@@ -353,7 +353,7 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-detail-created-at">
           <Clock className="w-4 h-4" />
           <span>{formatDateTime(client.createdAt)}</span>
@@ -375,7 +375,7 @@ export default function ClientDetail() {
 
       {/* Contact Tracking Section */}
       <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <PhoneCall className="w-4 h-4" />מעקב התקשרות
           </h3>
@@ -391,7 +391,7 @@ export default function ClientDetail() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">סטטוס קשר</p>
               <Select
@@ -545,7 +545,7 @@ export default function ClientDetail() {
 
           <div className="border-t pt-4 mt-4">
             <h4 className="text-sm font-semibold mb-3">תמחור</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>סוג תמחור</Label>
                 <Select value={editData.pricingType || ""} onValueChange={(v) => setEditData({ ...editData, pricingType: v as any })}>
@@ -609,7 +609,7 @@ export default function ClientDetail() {
           </h3>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Textarea
               placeholder="הוסף הערה חדשה..."
               value={noteText}
@@ -657,7 +657,6 @@ export default function ClientDetail() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-6 w-6"
                             onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.content); }}
                             data-testid={`button-edit-note-${note.id}`}
                           >
@@ -666,7 +665,7 @@ export default function ClientDetail() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-6 w-6 text-destructive"
+                            className="text-destructive"
                             onClick={() => deleteNoteMutation.mutate(note.id)}
                             data-testid={`button-delete-note-${note.id}`}
                           >
@@ -687,7 +686,7 @@ export default function ClientDetail() {
 
       {/* Cases Section */}
       <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <Briefcase className="w-4 h-4" />תיקים ({clientCases?.length || 0})
           </h3>
@@ -697,28 +696,49 @@ export default function ClientDetail() {
         </CardHeader>
         <CardContent className="p-0">
           {clientCases && clientCases.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>סוג שירות</TableHead>
-                  <TableHead>שנת מס</TableHead>
-                  <TableHead>סטטוס</TableHead>
-                  <TableHead>עדיפות</TableHead>
-                  <TableHead>הערכת החזר</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>סוג שירות</TableHead>
+                      <TableHead>שנת מס</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>עדיפות</TableHead>
+                      <TableHead>הערכת החזר</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientCases.map(c => (
+                      <TableRow key={c.id} data-testid={`row-case-${c.id}`}>
+                        <TableCell className="text-sm">{serviceTypeLabels[c.serviceType || ""] || c.serviceType}</TableCell>
+                        <TableCell className="text-sm">{c.taxYear || "-"}</TableCell>
+                        <TableCell><StatusBadge status={c.status} /></TableCell>
+                        <TableCell><StatusBadge status={c.priority} /></TableCell>
+                        <TableCell className="text-sm">{c.refundEstimate ? formatCurrency(parseFloat(c.refundEstimate)) : "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="sm:hidden space-y-2 p-4">
                 {clientCases.map(c => (
-                  <TableRow key={c.id} data-testid={`row-case-${c.id}`}>
-                    <TableCell className="text-sm">{serviceTypeLabels[c.serviceType || ""] || c.serviceType}</TableCell>
-                    <TableCell className="text-sm">{c.taxYear || "-"}</TableCell>
-                    <TableCell><StatusBadge status={c.status} /></TableCell>
-                    <TableCell><StatusBadge status={c.priority} /></TableCell>
-                    <TableCell className="text-sm">{c.refundEstimate ? formatCurrency(parseFloat(c.refundEstimate)) : "-"}</TableCell>
-                  </TableRow>
+                  <div key={c.id} className="border rounded-md p-3 space-y-2" data-testid={`card-case-${c.id}`}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{serviceTypeLabels[c.serviceType || ""] || c.serviceType}</span>
+                      <StatusBadge status={c.status} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-sm text-muted-foreground">
+                      <span>שנת מס: {c.taxYear || "-"}</span>
+                      <StatusBadge status={c.priority} />
+                    </div>
+                    {c.refundEstimate && (
+                      <p className="text-sm">הערכת החזר: {formatCurrency(parseFloat(c.refundEstimate))}</p>
+                    )}
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">אין תיקים ללקוח זה</div>
           )}
@@ -727,7 +747,7 @@ export default function ClientDetail() {
 
       {/* Tasks Section */}
       <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <CheckSquare className="w-4 h-4" />משימות ({clientTasks?.length || 0})
           </h3>
@@ -737,26 +757,44 @@ export default function ClientDetail() {
         </CardHeader>
         <CardContent className="p-0">
           {clientTasks && clientTasks.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>משימה</TableHead>
-                  <TableHead>תאריך יעד</TableHead>
-                  <TableHead>סטטוס</TableHead>
-                  <TableHead>עדיפות</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>משימה</TableHead>
+                      <TableHead>תאריך יעד</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>עדיפות</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientTasks.map(t => (
+                      <TableRow key={t.id} data-testid={`row-task-${t.id}`}>
+                        <TableCell className="text-sm font-medium">{t.taskName}</TableCell>
+                        <TableCell className="text-sm">{t.dueDate || "-"}</TableCell>
+                        <TableCell><StatusBadge status={t.status} /></TableCell>
+                        <TableCell><StatusBadge status={t.priority} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="sm:hidden space-y-2 p-4">
                 {clientTasks.map(t => (
-                  <TableRow key={t.id} data-testid={`row-task-${t.id}`}>
-                    <TableCell className="text-sm font-medium">{t.taskName}</TableCell>
-                    <TableCell className="text-sm">{t.dueDate || "-"}</TableCell>
-                    <TableCell><StatusBadge status={t.status} /></TableCell>
-                    <TableCell><StatusBadge status={t.priority} /></TableCell>
-                  </TableRow>
+                  <div key={t.id} className="border rounded-md p-3 space-y-2" data-testid={`card-task-${t.id}`}>
+                    <p className="text-sm font-medium">{t.taskName}</p>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-sm text-muted-foreground">יעד: {t.dueDate || "-"}</span>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <StatusBadge status={t.status} />
+                        <StatusBadge status={t.priority} />
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">אין משימות ללקוח זה</div>
           )}
@@ -765,7 +803,7 @@ export default function ClientDetail() {
 
       {/* Payments Section */}
       <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <CreditCard className="w-4 h-4" />תשלומים ({clientPayments?.length || 0})
           </h3>
@@ -775,28 +813,49 @@ export default function ClientDetail() {
         </CardHeader>
         <CardContent className="p-0">
           {clientPayments && clientPayments.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>סכום</TableHead>
-                  <TableHead>תאריך</TableHead>
-                  <TableHead>אמצעי תשלום</TableHead>
-                  <TableHead>סטטוס</TableHead>
-                  <TableHead>מס׳ אסמכתא</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>סכום</TableHead>
+                      <TableHead>תאריך</TableHead>
+                      <TableHead>אמצעי תשלום</TableHead>
+                      <TableHead>סטטוס</TableHead>
+                      <TableHead>מס׳ אסמכתא</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientPayments.map(p => (
+                      <TableRow key={p.id} data-testid={`row-payment-${p.id}`}>
+                        <TableCell className="text-sm font-medium">{formatCurrency(parseFloat(p.amount))}</TableCell>
+                        <TableCell className="text-sm">{p.paymentDate || "-"}</TableCell>
+                        <TableCell className="text-sm">{paymentMethodLabels[p.paymentMethod || ""] || p.paymentMethod}</TableCell>
+                        <TableCell><StatusBadge status={p.status} /></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{p.referenceNumber || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="sm:hidden space-y-2 p-4">
                 {clientPayments.map(p => (
-                  <TableRow key={p.id} data-testid={`row-payment-${p.id}`}>
-                    <TableCell className="text-sm font-medium">{formatCurrency(parseFloat(p.amount))}</TableCell>
-                    <TableCell className="text-sm">{p.paymentDate || "-"}</TableCell>
-                    <TableCell className="text-sm">{paymentMethodLabels[p.paymentMethod || ""] || p.paymentMethod}</TableCell>
-                    <TableCell><StatusBadge status={p.status} /></TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{p.referenceNumber || "-"}</TableCell>
-                  </TableRow>
+                  <div key={p.id} className="border rounded-md p-3 space-y-2" data-testid={`card-payment-${p.id}`}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{formatCurrency(parseFloat(p.amount))}</span>
+                      <StatusBadge status={p.status} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-sm text-muted-foreground">
+                      <span>{p.paymentDate || "-"}</span>
+                      <span>{paymentMethodLabels[p.paymentMethod || ""] || p.paymentMethod}</span>
+                    </div>
+                    {p.referenceNumber && (
+                      <p className="text-xs text-muted-foreground">אסמכתא: {p.referenceNumber}</p>
+                    )}
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">אין תשלומים ללקוח זה</div>
           )}
@@ -810,7 +869,7 @@ export default function ClientDetail() {
             <DialogTitle>תיק חדש - {client.fullName}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCaseSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>שנת מס</Label>
                 <Input name="taxYear" type="number" placeholder="2024" data-testid="input-inline-case-year" />
@@ -832,7 +891,7 @@ export default function ClientDetail() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>עדיפות</Label>
                 <Select name="priority" defaultValue="medium">
@@ -885,7 +944,7 @@ export default function ClientDetail() {
               <Label>שם משימה *</Label>
               <Input name="taskName" required data-testid="input-inline-task-name" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>תאריך יעד</Label>
                 <Input name="dueDate" type="date" data-testid="input-inline-task-due" />
@@ -938,7 +997,7 @@ export default function ClientDetail() {
             <DialogTitle>תשלום חדש - {client.fullName}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePaymentSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>סכום *</Label>
                 <Input name="amount" type="number" step="0.01" required data-testid="input-inline-payment-amount" />
@@ -948,7 +1007,7 @@ export default function ClientDetail() {
                 <Input name="paymentDate" type="date" data-testid="input-inline-payment-date" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>אמצעי תשלום</Label>
                 <Select name="paymentMethod" defaultValue="bank_transfer">

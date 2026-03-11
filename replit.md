@@ -12,6 +12,7 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 - **Search icons**: Positioned on right side (`right-3`, `pr-9`) for RTL
 - **Back navigation**: Uses `ArrowRight` icon (RTL-appropriate)
 - **Sidebar**: Rendered on right side (`side="right"`)
+- **Mobile responsive**: All pages optimized for 360-412px screens. Tables convert to card layouts on mobile (`md:hidden` / `hidden md:block`). Search/filters stack vertically. Forms single-column on mobile. Page padding `p-4 sm:p-6`.
 - **Status badges**: Hebrew label translations via `hebrewLabels` map in `status-badge.tsx`
 
 ## Tech Stack

@@ -20,6 +20,15 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Client } from "@shared/schema";
 
+const sourceLabels: Record<string, string> = {
+  referral: "הפניה",
+  website: "אתר",
+  social_media: "רשתות חברתיות",
+  direct: "ישיר",
+  recommended: "מומלצים",
+  other: "אחר",
+};
+
 export default function Clients() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -75,14 +84,14 @@ export default function Clients() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-auto h-full">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-auto h-full">
       <PageHeader
         title="לקוחות"
         description={`${clients?.length || 0} לקוחות סה״כ`}
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-client"><Plus className="w-4 h-4 ml-2" />הוסף לקוח</Button>
+              <Button data-testid="button-add-client" className="w-full sm:w-auto"><Plus className="w-4 h-4 ml-2" />הוסף לקוח</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -93,7 +102,7 @@ export default function Clients() {
                   <Label htmlFor="fullName">שם מלא *</Label>
                   <Input id="fullName" name="fullName" required data-testid="input-client-name" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">אימייל</Label>
                     <Input id="email" name="email" type="email" data-testid="input-client-email" />
@@ -103,7 +112,7 @@ export default function Clients() {
                     <Input id="phone" name="phone" data-testid="input-client-phone" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="clientType">סוג לקוח</Label>
                     <Select name="clientType" defaultValue="private_individual">
@@ -159,8 +168,8 @@ export default function Clients() {
         }
       />
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="חיפוש לקוחות..."
@@ -171,7 +180,7 @@ export default function Clients() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]" data-testid="select-filter-status">
+          <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-filter-status">
             <SelectValue placeholder="סינון לפי סטטוס" />
           </SelectTrigger>
           <SelectContent>
@@ -184,13 +193,15 @@ export default function Clients() {
       </div>
 
       {isLoading ? (
-        <Card>
-          <CardContent className="p-4 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <Skeleton className="h-12 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={search ? Search : Plus}
@@ -203,103 +214,165 @@ export default function Clients() {
           ) : undefined}
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table className="table-fixed w-full">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[18%]">שם</TableHead>
-                  <TableHead className="hidden md:table-cell w-[20%]">פרטי קשר</TableHead>
-                  <TableHead className="w-[10%]">סוג</TableHead>
-                  <TableHead className="w-[10%]">סטטוס</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[10%]">תהליך</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[10%]">מקור</TableHead>
-                  <TableHead className="hidden md:table-cell w-[16%]">תאריך יצירה</TableHead>
-                  <TableHead className="w-[48px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(client => (
-                  <TableRow
-                    key={client.id}
-                    className="cursor-pointer"
-                    onClick={() => setLocation(`/clients/${client.id}`)}
-                    data-testid={`row-client-${client.id}`}
-                  >
-                    <TableCell className="truncate">
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{client.fullName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{client.taxId || "ללא ת.ז."}</p>
+        <>
+          <div className="md:hidden space-y-3">
+            {filtered.map(client => (
+              <Card
+                key={client.id}
+                className="hover-elevate cursor-pointer"
+                onClick={() => setLocation(`/clients/${client.id}`)}
+                data-testid={`card-client-${client.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm truncate" data-testid={`text-client-name-${client.id}`}>{client.fullName}</p>
+                        <StatusBadge status={client.status} />
                       </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="space-y-1 min-w-0">
-                        {client.email && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
-                            <Mail className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{client.email}</span>
-                          </div>
-                        )}
-                        {client.phone && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Phone className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{client.phone}</span>
-                          </div>
-                        )}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {client.clientType === "self_employed" ? "עצמאי" : "יחיד/שכיר"}
+                        {client.source ? ` · ${sourceLabels[client.source] || client.source}` : ""}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
+                          <Eye className="w-4 h-4 ml-2" />צפה
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
+                        >
+                          <Trash2 className="w-4 h-4 ml-2" />מחק
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="flex flex-col gap-1 mt-2">
+                    {client.phone && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Phone className="w-3 h-3 flex-shrink-0" />
+                        <span dir="ltr">{client.phone}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs">{client.clientType === "self_employed" ? "עצמאי" : "יחיד/שכיר"}</span>
-                    </TableCell>
-                    <TableCell><StatusBadge status={client.status} /></TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <StatusBadge status={client.clientProcessStatus} />
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground">
-                        {client.source === "referral" ? "הפניה" :
-                         client.source === "website" ? "אתר" :
-                         client.source === "social_media" ? "רשתות חברתיות" :
-                         client.source === "direct" ? "ישיר" :
-                         client.source === "recommended" ? "מומלצים" :
-                         client.source === "other" ? "אחר" : client.source}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex items-start gap-1.5" data-testid={`text-created-at-${client.id}`}>
-                        <Clock className="w-3 h-3 mt-0.5 text-muted-foreground flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs whitespace-nowrap">{formatDateTime(client.createdAt)}</p>
-                          <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
-                        </div>
+                    )}
+                    {client.email && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+                        <Mail className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{client.email}</span>
                       </div>
-                    </TableCell>
-                    <TableCell className="w-[48px]">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
-                            <Eye className="w-4 h-4 ml-2" />צפה
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
-                          >
-                            <Trash2 className="w-4 h-4 ml-2" />מחק
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3 flex-shrink-0" />
+                      <span>{formatDateTime(client.createdAt)}</span>
+                    </div>
+                    <StatusBadge status={client.clientProcessStatus} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="hidden md:block">
+            <CardContent className="p-0">
+              <Table className="table-fixed w-full">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[18%]">שם</TableHead>
+                    <TableHead className="w-[20%]">פרטי קשר</TableHead>
+                    <TableHead className="w-[10%]">סוג</TableHead>
+                    <TableHead className="w-[10%]">סטטוס</TableHead>
+                    <TableHead className="hidden lg:table-cell w-[10%]">תהליך</TableHead>
+                    <TableHead className="hidden lg:table-cell w-[10%]">מקור</TableHead>
+                    <TableHead className="w-[16%]">תאריך יצירה</TableHead>
+                    <TableHead className="w-[48px]"></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(client => (
+                    <TableRow
+                      key={client.id}
+                      className="cursor-pointer"
+                      onClick={() => setLocation(`/clients/${client.id}`)}
+                      data-testid={`row-client-${client.id}`}
+                    >
+                      <TableCell className="truncate">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{client.fullName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{client.taxId || "ללא ת.ז."}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1 min-w-0">
+                          {client.email && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                              <Mail className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{client.email}</span>
+                            </div>
+                          )}
+                          {client.phone && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Phone className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{client.phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs">{client.clientType === "self_employed" ? "עצמאי" : "יחיד/שכיר"}</span>
+                      </TableCell>
+                      <TableCell><StatusBadge status={client.status} /></TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <StatusBadge status={client.clientProcessStatus} />
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <span className="text-xs text-muted-foreground">
+                          {sourceLabels[client.source || ""] || client.source}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-start gap-1.5" data-testid={`text-created-at-${client.id}`}>
+                          <Clock className="w-3 h-3 mt-0.5 text-muted-foreground flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs whitespace-nowrap">{formatDateTime(client.createdAt)}</p>
+                            <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="w-[48px]">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
+                              <Eye className="w-4 h-4 ml-2" />צפה
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
+                            >
+                              <Trash2 className="w-4 h-4 ml-2" />מחק
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
