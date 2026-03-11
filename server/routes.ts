@@ -253,7 +253,11 @@ export async function registerRoutes(
 
   app.post("/api/webhooks/landy", async (req, res) => {
     const receivedAt = new Date().toISOString();
-    console.log(`[Landy Webhook] Received at ${receivedAt}`);
+    console.log(`[Landy Webhook] ──────────────────────────────────────`);
+    console.log(`[Landy Webhook] Received POST at ${receivedAt}`);
+    console.log(`[Landy Webhook] Content-Type: ${req.headers["content-type"]}`);
+    console.log(`[Landy Webhook] Body keys: ${JSON.stringify(Object.keys(req.body || {}))}`);
+    console.log(`[Landy Webhook] Raw body: ${JSON.stringify(req.body).substring(0, 500)}`);
 
     const signature = typeof req.headers["x-landy-signature"] === "string"
       ? req.headers["x-landy-signature"].trim()
@@ -261,26 +265,30 @@ export async function registerRoutes(
     const expectedSecret = process.env.LANDY_WEBHOOK_SECRET?.trim();
 
     if (!expectedSecret || signature !== expectedSecret) {
-      console.warn(`[Landy Webhook] Auth failed — ${!expectedSecret ? "secret not configured" : !signature ? "missing header" : "signature mismatch"}`);
+      const reason = !expectedSecret ? "LANDY_WEBHOOK_SECRET not configured in env" : !signature ? "x-landy-signature header missing from request" : "signature mismatch";
+      console.warn(`[Landy Webhook] Auth REJECTED — ${reason}`);
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
+    console.log(`[Landy Webhook] Auth OK`);
 
     const body = req.body || {};
-    const formData = body.form_data || body.formData || {};
+    const formData = body.form_data || body.formData || body.data || {};
 
-    const full_name = body.full_name || body.name || body.fullName || formData.full_name || formData.name || formData.fullName || "";
-    const phone = body.phone || body.telephone || body.tel || formData.phone || formData.telephone || formData.tel || "";
+    const full_name = body.full_name || body.name || body.fullName || body.full_name_input || formData.full_name || formData.name || formData.fullName || "";
+    const phone = body.phone || body.telephone || body.tel || body.phone_number || formData.phone || formData.telephone || formData.tel || formData.phone_number || "";
     const email = body.email || body.mail || formData.email || formData.mail || "";
-    const rawSource = body.source || body.page_name || body.pageName || body.utm_source || formData.source || formData.page_name || "landy";
-    const notes = body.notes || body.message || body.comment || formData.notes || formData.message || formData.comment || "";
+    const rawSource = body.source || body.page_name || body.pageName || body.utm_source || body.landing_page || formData.source || formData.page_name || formData.landing_page || "landy";
+    const notes = body.notes || body.message || body.comment || body.comments || formData.notes || formData.message || formData.comment || "";
     const address = body.address || formData.address || "";
     const tax_id = body.tax_id || body.taxId || formData.tax_id || formData.taxId || "";
+
+    console.log(`[Landy Webhook] Parsed — name: "${full_name}", phone: "${phone}", email: "${email}", source: "${rawSource}"`);
 
     if (!full_name || !phone) {
       const missing = [];
       if (!full_name) missing.push("full_name");
       if (!phone) missing.push("phone");
-      console.warn(`[Landy Webhook] Validation failed — missing: ${missing.join(", ")}`);
+      console.warn(`[Landy Webhook] Validation FAILED — missing: ${missing.join(", ")}. Raw body logged above.`);
       return res.status(400).json({ success: false, error: "Missing required fields", missing });
     }
 
@@ -304,7 +312,7 @@ export async function registerRoutes(
       if (existing) {
         const { status, clientProcessStatus, ...updateData } = clientData;
         await storage.updateClient(existing.id, updateData);
-        console.log(`[Landy Webhook] Updated client ${existing.id} (${full_name})`);
+        console.log(`[Landy Webhook] SUCCESS — Updated existing client ${existing.id} (${full_name})`);
         return res.status(200).json({
           success: true,
           action: "updated",
@@ -315,7 +323,7 @@ export async function registerRoutes(
       }
 
       const newClient = await storage.createClient(clientData);
-      console.log(`[Landy Webhook] Created client ${newClient.id} (${full_name})`);
+      console.log(`[Landy Webhook] SUCCESS — Created new lead ${newClient.id} (${full_name})`);
       return res.status(200).json({
         success: true,
         action: "created",
@@ -324,7 +332,8 @@ export async function registerRoutes(
         receivedAt,
       });
     } catch (err: any) {
-      console.error(`[Landy Webhook] Error:`, err.message);
+      console.error(`[Landy Webhook] DATABASE ERROR:`, err.message);
+      console.error(`[Landy Webhook] Stack:`, err.stack?.substring(0, 300));
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
