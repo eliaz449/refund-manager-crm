@@ -264,9 +264,18 @@ export async function registerRoutes(
       : undefined;
     const expectedSecret = process.env.LANDY_WEBHOOK_SECRET?.trim();
 
+    // Diagnostic: log partial values to identify mismatches without exposing secrets
+    const maskSecret = (s: string | undefined) => s ? `"${s.substring(0, 6)}..." (len=${s.length})` : "(not set)";
+    console.log(`[Landy Webhook] Auth check — received: ${maskSecret(signature)} | expected: ${maskSecret(expectedSecret)}`);
+
     if (!expectedSecret || signature !== expectedSecret) {
       const reason = !expectedSecret ? "LANDY_WEBHOOK_SECRET not configured in env" : !signature ? "x-landy-signature header missing from request" : "signature mismatch";
       console.warn(`[Landy Webhook] Auth REJECTED — ${reason}`);
+      // Log all incoming headers for debugging (excluding sensitive ones)
+      const safeHeaders = Object.fromEntries(
+        Object.entries(req.headers).filter(([k]) => !["authorization", "cookie"].includes(k))
+      );
+      console.warn(`[Landy Webhook] Request headers: ${JSON.stringify(safeHeaders)}`);
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     console.log(`[Landy Webhook] Auth OK`);
