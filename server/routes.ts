@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
@@ -254,7 +255,12 @@ export async function registerRoutes(
 
   app.post("/api/webhooks/landy", async (req, res) => {
     const receivedAt = new Date().toISOString();
-    const rawBody = JSON.stringify(req.body || {});
+    // Use the original raw bytes that arrived — critical for HMAC verification
+    const rawBodyBuffer: Buffer = Buffer.isBuffer((req as any).rawBody)
+      ? (req as any).rawBody
+      : Buffer.from(JSON.stringify(req.body || {}));
+    const rawBodyStr = rawBodyBuffer.toString("utf8");
+
     const safeHeaders = Object.fromEntries(
       Object.entries(req.headers).filter(([k]) => !["cookie"].includes(k))
     );
@@ -266,14 +272,14 @@ export async function registerRoutes(
     console.log(`[Landy] ── STEP 1: Request received at ${receivedAt}`);
     console.log(`[Landy]    Content-Type: ${req.headers["content-type"]}`);
     console.log(`[Landy]    Body keys: ${JSON.stringify(Object.keys(req.body || {}))}`);
-    console.log(`[Landy]    Raw body: ${rawBody.substring(0, 600)}`);
+    console.log(`[Landy]    Raw body: ${rawBodyStr.substring(0, 600)}`);
 
     let auditId: string | undefined;
     try {
       const audit = await storage.createWebhookEvent({
         source: "landy",
         rawHeaders: JSON.stringify(safeHeaders),
-        rawBody,
+        rawBody: rawBodyStr,
         receivedSignature,
         processingStatus: "received",
       });
@@ -283,26 +289,45 @@ export async function registerRoutes(
       console.error(`[Landy]    WARNING: Could not create audit record: ${auditErr.message}`);
     }
 
-    // ── STEP 2: Authentication ──
+    // ── STEP 2: Authentication (HMAC-SHA256) ──
+    // Landy computes: HMAC-SHA256(secret, rawBody) → hex
     const expectedSecret = process.env.LANDY_WEBHOOK_SECRET?.trim();
-    console.log(`[Landy] ── STEP 2: Auth check`);
+    console.log(`[Landy] ── STEP 2: Auth check (HMAC-SHA256)`);
     console.log(`[Landy]    Received signature: ${maskVal(receivedSignature)}`);
-    console.log(`[Landy]    Expected secret  : ${maskVal(expectedSecret)}`);
 
-    if (!expectedSecret || receivedSignature !== expectedSecret) {
-      const reason = !expectedSecret
-        ? "LANDY_WEBHOOK_SECRET not configured"
-        : !receivedSignature
-          ? "x-landy-signature header missing"
-          : `signature mismatch — received ${maskVal(receivedSignature)}, expected ${maskVal(expectedSecret)}`;
+    if (!expectedSecret) {
+      const reason = "LANDY_WEBHOOK_SECRET not configured in env";
       console.warn(`[Landy]    Auth FAILED: ${reason}`);
-      if (auditId) await storage.updateWebhookEvent(auditId, {
-        authStatus: !expectedSecret ? "no_secret" : "failed",
-        processingStatus: "auth_failed",
-        errorMessage: reason,
-      });
+      if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "no_secret", processingStatus: "auth_failed", errorMessage: reason });
       return res.status(401).json({ success: false, error: "Unauthorized", reason });
     }
+
+    if (!receivedSignature) {
+      const reason = "x-landy-signature header missing from request";
+      console.warn(`[Landy]    Auth FAILED: ${reason}`);
+      if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "failed", processingStatus: "auth_failed", errorMessage: reason });
+      return res.status(401).json({ success: false, error: "Unauthorized", reason });
+    }
+
+    const expectedHmac = crypto
+      .createHmac("sha256", expectedSecret)
+      .update(rawBodyBuffer)
+      .digest("hex");
+
+    console.log(`[Landy]    Computed HMAC   : ${maskVal(expectedHmac)}`);
+
+    const recvBuf = Buffer.from(receivedSignature, "utf8");
+    const expBuf  = Buffer.from(expectedHmac, "utf8");
+    const signaturesMatch = recvBuf.length === expBuf.length &&
+      crypto.timingSafeEqual(recvBuf, expBuf);
+
+    if (!signaturesMatch) {
+      const reason = `HMAC mismatch — received ${maskVal(receivedSignature)}, computed ${maskVal(expectedHmac)}`;
+      console.warn(`[Landy]    Auth FAILED: ${reason}`);
+      if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "failed", processingStatus: "auth_failed", errorMessage: reason });
+      return res.status(401).json({ success: false, error: "Unauthorized", reason });
+    }
+
     console.log(`[Landy]    Auth PASSED`);
     if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "ok" });
 
