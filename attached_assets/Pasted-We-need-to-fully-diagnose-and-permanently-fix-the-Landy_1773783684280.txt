@@ -1,0 +1,166 @@
+We need to fully diagnose and permanently fix the Landy → Replit CRM lead intake.
+
+IMPORTANT:
+Do not guess.
+Do not make partial fixes.
+I want a full end-to-end diagnosis and permanent solution.
+
+Problem:
+Sometimes a lead is submitted from the landing page, but it does not reliably appear in the CRM.
+
+I want you to debug the full flow and tell me exactly where it fails.
+
+Please do ALL of the following:
+
+==================================================
+1. VERIFY WEBHOOK ARRIVAL
+==================================================
+
+For every request to:
+POST /api/webhooks/landy
+
+Log clearly:
+- timestamp
+- request received
+- headers
+- body
+- parsed payload
+- whether authentication passed
+- whether validation passed
+- whether database create/update was attempted
+- whether database write succeeded
+- final HTTP response code
+
+I want one clear log line per step so we can trace the request from start to finish.
+
+==================================================
+2. VERIFY AUTHENTICATION
+==================================================
+
+Confirm exactly how Landy authentication is currently handled.
+
+Check:
+- which header is used
+- whether it is treated as raw secret or computed signature
+- whether the current verification logic is correct for Landy
+- whether authentication is currently causing any dropped leads
+
+If Landy does not support the current auth approach reliably, implement the simplest stable approach that works consistently.
+
+==================================================
+3. VERIFY PAYLOAD MAPPING
+==================================================
+
+Landy may send fields in different shapes.
+
+Please support and log all relevant mappings safely, including:
+- full_name = body.full_name || body.name || body.form_data?.full_name || body.form_data?.name
+- phone = body.phone || body.form_data?.phone
+- email = body.email || body.form_data?.email
+- source = body.source || "landy"
+- page_name = body.page_name || body.form_data?.page_name
+- notes if available
+
+Then log the final normalized payload used for CRM creation.
+
+==================================================
+4. VERIFY DATABASE WRITE
+==================================================
+
+After mapping, explicitly log:
+- whether an existing client was found
+- whether the system is creating or updating
+- client id if successful
+- exact database error if failed
+
+I want zero silent failures.
+
+If database write fails, log the exact reason.
+
+==================================================
+5. ADD A PERMANENT WEBHOOK AUDIT TABLE
+==================================================
+
+Please create a lightweight webhook audit log table in the database, for example:
+WebhookEvent or LandyWebhookLog
+
+Store for every incoming webhook:
+- id
+- received_at
+- raw_headers
+- raw_body
+- normalized_payload
+- auth_status
+- processing_status
+- error_message
+- created_client_id (if any)
+
+This is critical so future failures can be diagnosed without guessing.
+
+==================================================
+6. MAKE THE WEBHOOK FAIL-SAFE
+==================================================
+
+I do NOT want leads to disappear silently.
+
+Implement fail-safe behavior:
+- if webhook received but client creation fails, store the webhook event as failed
+- do not silently return success if the lead was not actually processed
+- return clear status codes
+- preserve the payload in audit log even if processing fails
+
+==================================================
+7. CREATE A MANUAL TEST ENDPOINT OR TEST SCRIPT
+==================================================
+
+Create a reliable test method so we can test without Landy.
+
+Either:
+- give me a curl command
+or
+- create a small internal test tool
+that sends a sample lead into the same processing flow
+
+The test must confirm:
+- webhook route works
+- payload mapping works
+- database write works
+
+==================================================
+8. VERIFY THE CRM UI SIDE
+==================================================
+
+After a lead is successfully created or updated, confirm exactly where it should appear in the UI:
+- Clients table
+- sort order
+- lead status
+- created_at
+
+Also verify that new leads are sorted newest first so I can see them immediately.
+
+==================================================
+9. DEFINE SUCCESS CRITERIA
+==================================================
+
+I want a final answer only after you verify all of these:
+
+1. Landy submission reaches the webhook
+2. authentication passes consistently
+3. payload mapping succeeds
+4. client is created or updated in production database
+5. the lead appears in the CRM UI
+6. failed requests are stored in webhook audit log
+7. no silent failures remain
+
+==================================================
+10. WHAT I WANT BACK FROM YOU
+==================================================
+
+After you complete this, send me:
+
+1. The exact root cause of the issue
+2. What you changed to fix it permanently
+3. A sample successful webhook log
+4. A sample failed webhook log
+5. Where I can view webhook audit history in the system
+6. A curl test command I can use anytime

@@ -250,59 +250,92 @@ export async function registerRoutes(
 
   // ─── Landy Webhook ─────────────────────────────────────────────
   const VALID_SOURCES = ["referral", "website", "social_media", "direct", "other"] as const;
+  const maskVal = (s: string | undefined) => s ? `"${s.substring(0, 6)}..." (len=${s.length})` : "(not set)";
 
   app.post("/api/webhooks/landy", async (req, res) => {
     const receivedAt = new Date().toISOString();
-    console.log(`[Landy Webhook] ──────────────────────────────────────`);
-    console.log(`[Landy Webhook] Received POST at ${receivedAt}`);
-    console.log(`[Landy Webhook] Content-Type: ${req.headers["content-type"]}`);
-    console.log(`[Landy Webhook] Body keys: ${JSON.stringify(Object.keys(req.body || {}))}`);
-    console.log(`[Landy Webhook] Raw body: ${JSON.stringify(req.body).substring(0, 500)}`);
-
-    const signature = typeof req.headers["x-landy-signature"] === "string"
+    const rawBody = JSON.stringify(req.body || {});
+    const safeHeaders = Object.fromEntries(
+      Object.entries(req.headers).filter(([k]) => !["cookie"].includes(k))
+    );
+    const receivedSignature = typeof req.headers["x-landy-signature"] === "string"
       ? req.headers["x-landy-signature"].trim()
       : undefined;
+
+    // ── STEP 1: Log receipt & save audit record immediately (nothing is lost after this point) ──
+    console.log(`[Landy] ── STEP 1: Request received at ${receivedAt}`);
+    console.log(`[Landy]    Content-Type: ${req.headers["content-type"]}`);
+    console.log(`[Landy]    Body keys: ${JSON.stringify(Object.keys(req.body || {}))}`);
+    console.log(`[Landy]    Raw body: ${rawBody.substring(0, 600)}`);
+
+    let auditId: string | undefined;
+    try {
+      const audit = await storage.createWebhookEvent({
+        source: "landy",
+        rawHeaders: JSON.stringify(safeHeaders),
+        rawBody,
+        receivedSignature,
+        processingStatus: "received",
+      });
+      auditId = audit.id;
+      console.log(`[Landy]    Audit record created: ${auditId}`);
+    } catch (auditErr: any) {
+      console.error(`[Landy]    WARNING: Could not create audit record: ${auditErr.message}`);
+    }
+
+    // ── STEP 2: Authentication ──
     const expectedSecret = process.env.LANDY_WEBHOOK_SECRET?.trim();
+    console.log(`[Landy] ── STEP 2: Auth check`);
+    console.log(`[Landy]    Received signature: ${maskVal(receivedSignature)}`);
+    console.log(`[Landy]    Expected secret  : ${maskVal(expectedSecret)}`);
 
-    // Diagnostic: log partial values to identify mismatches without exposing secrets
-    const maskSecret = (s: string | undefined) => s ? `"${s.substring(0, 6)}..." (len=${s.length})` : "(not set)";
-    console.log(`[Landy Webhook] Auth check — received: ${maskSecret(signature)} | expected: ${maskSecret(expectedSecret)}`);
-
-    if (!expectedSecret || signature !== expectedSecret) {
-      const reason = !expectedSecret ? "LANDY_WEBHOOK_SECRET not configured in env" : !signature ? "x-landy-signature header missing from request" : "signature mismatch";
-      console.warn(`[Landy Webhook] Auth REJECTED — ${reason}`);
-      // Log all incoming headers for debugging (excluding sensitive ones)
-      const safeHeaders = Object.fromEntries(
-        Object.entries(req.headers).filter(([k]) => !["authorization", "cookie"].includes(k))
-      );
-      console.warn(`[Landy Webhook] Request headers: ${JSON.stringify(safeHeaders)}`);
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+    if (!expectedSecret || receivedSignature !== expectedSecret) {
+      const reason = !expectedSecret
+        ? "LANDY_WEBHOOK_SECRET not configured"
+        : !receivedSignature
+          ? "x-landy-signature header missing"
+          : `signature mismatch — received ${maskVal(receivedSignature)}, expected ${maskVal(expectedSecret)}`;
+      console.warn(`[Landy]    Auth FAILED: ${reason}`);
+      if (auditId) await storage.updateWebhookEvent(auditId, {
+        authStatus: !expectedSecret ? "no_secret" : "failed",
+        processingStatus: "auth_failed",
+        errorMessage: reason,
+      });
+      return res.status(401).json({ success: false, error: "Unauthorized", reason });
     }
-    console.log(`[Landy Webhook] Auth OK`);
+    console.log(`[Landy]    Auth PASSED`);
+    if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "ok" });
 
+    // ── STEP 3: Payload mapping ──
+    console.log(`[Landy] ── STEP 3: Payload mapping`);
     const body = req.body || {};
-    const formData = body.form_data || body.formData || body.data || {};
+    const fd = body.form_data || body.formData || body.data || {};
 
-    const full_name = body.full_name || body.name || body.fullName || body.full_name_input || formData.full_name || formData.name || formData.fullName || "";
-    const phone = body.phone || body.telephone || body.tel || body.phone_number || formData.phone || formData.telephone || formData.tel || formData.phone_number || "";
-    const email = body.email || body.mail || formData.email || formData.mail || "";
-    const rawSource = body.source || body.page_name || body.pageName || body.utm_source || body.landing_page || formData.source || formData.page_name || formData.landing_page || "landy";
-    const notes = body.notes || body.message || body.comment || body.comments || formData.notes || formData.message || formData.comment || "";
-    const address = body.address || formData.address || "";
-    const tax_id = body.tax_id || body.taxId || formData.tax_id || formData.taxId || "";
+    const full_name  = body.full_name  || body.name      || body.fullName  || fd.full_name  || fd.name      || fd.fullName  || "";
+    const phone      = body.phone      || body.telephone  || body.tel       || fd.phone      || fd.telephone  || fd.tel       || "";
+    const email      = body.email      || body.mail       || fd.email       || fd.mail       || "";
+    const page_name  = body.page_name  || body.pageName   || fd.page_name   || fd.pageName   || "";
+    const rawSource  = body.source     || body.utm_source || fd.source      || "landy";
+    const notes      = body.notes      || body.message    || body.comment   || fd.notes      || fd.message    || fd.comment   || (page_name ? `דף נחיתה: ${page_name}` : "");
+    const address    = body.address    || fd.address      || "";
+    const tax_id     = body.tax_id     || body.taxId      || fd.tax_id      || fd.taxId      || "";
 
-    console.log(`[Landy Webhook] Parsed — name: "${full_name}", phone: "${phone}", email: "${email}", source: "${rawSource}"`);
+    const normalized = { full_name, phone, email, source: rawSource, page_name, notes, address, tax_id };
+    console.log(`[Landy]    Mapped payload: ${JSON.stringify(normalized)}`);
+    if (auditId) await storage.updateWebhookEvent(auditId, { normalizedPayload: JSON.stringify(normalized) });
 
+    // ── STEP 4: Validation ──
+    console.log(`[Landy] ── STEP 4: Validation`);
     if (!full_name || !phone) {
-      const missing = [];
-      if (!full_name) missing.push("full_name");
-      if (!phone) missing.push("phone");
-      console.warn(`[Landy Webhook] Validation FAILED — missing: ${missing.join(", ")}. Raw body logged above.`);
-      return res.status(400).json({ success: false, error: "Missing required fields", missing });
+      const missing = [...(!full_name ? ["full_name"] : []), ...(!phone ? ["phone"] : [])];
+      const msg = `Missing required fields: ${missing.join(", ")}`;
+      console.warn(`[Landy]    Validation FAILED — ${msg}`);
+      if (auditId) await storage.updateWebhookEvent(auditId, { processingStatus: "validation_failed", errorMessage: msg });
+      return res.status(400).json({ success: false, error: msg, missing });
     }
+    console.log(`[Landy]    Validation PASSED — name="${full_name}", phone="${phone}"`);
 
     const source: string = VALID_SOURCES.includes(rawSource as any) ? rawSource : "other";
-
     const clientData = {
       fullName: full_name,
       phone,
@@ -310,41 +343,51 @@ export async function registerRoutes(
       source: source as any,
       status: "lead" as const,
       clientProcessStatus: "lead" as const,
-      ...(notes && { notes }),
-      ...(address && { address }),
-      ...(tax_id && { taxId: tax_id }),
+      ...(notes    && { notes }),
+      ...(address  && { address }),
+      ...(tax_id   && { taxId: tax_id }),
     };
 
+    // ── STEP 5: Database write ──
+    console.log(`[Landy] ── STEP 5: Database write`);
     try {
       const existing = await storage.findClientByPhoneOrEmail(phone, email || "");
 
       if (existing) {
+        console.log(`[Landy]    Existing client found: ${existing.id} (${existing.fullName}) — updating`);
         const { status, clientProcessStatus, ...updateData } = clientData;
         await storage.updateClient(existing.id, updateData);
-        console.log(`[Landy Webhook] SUCCESS — Updated existing client ${existing.id} (${full_name})`);
-        return res.status(200).json({
-          success: true,
+        console.log(`[Landy]    SUCCESS — Updated client ${existing.id}`);
+        if (auditId) await storage.updateWebhookEvent(auditId, {
+          processingStatus: "updated",
+          createdClientId: existing.id,
           action: "updated",
-          message: "Client already exists — record updated",
-          clientId: existing.id,
-          receivedAt,
         });
+        return res.status(200).json({ success: true, action: "updated", clientId: existing.id, receivedAt });
       }
 
+      console.log(`[Landy]    No existing client — creating new lead`);
       const newClient = await storage.createClient(clientData);
-      console.log(`[Landy Webhook] SUCCESS — Created new lead ${newClient.id} (${full_name})`);
-      return res.status(200).json({
-        success: true,
+      console.log(`[Landy]    SUCCESS — Created lead ${newClient.id} (${newClient.fullName})`);
+      if (auditId) await storage.updateWebhookEvent(auditId, {
+        processingStatus: "created",
+        createdClientId: newClient.id,
         action: "created",
-        message: "New lead created successfully",
-        clientId: newClient.id,
-        receivedAt,
       });
+      return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
+
     } catch (err: any) {
-      console.error(`[Landy Webhook] DATABASE ERROR:`, err.message);
-      console.error(`[Landy Webhook] Stack:`, err.stack?.substring(0, 300));
+      const errMsg = `DB error: ${err.message}`;
+      console.error(`[Landy]    DATABASE ERROR: ${err.message}`);
+      if (auditId) await storage.updateWebhookEvent(auditId, { processingStatus: "db_error", errorMessage: errMsg });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
+  });
+
+  // ─── Webhook Events (audit log viewer) ─────────────────────────
+  app.get("/api/webhook-events", requireAuth, async (_req, res) => {
+    const events = await storage.getWebhookEvents(200);
+    res.json(events);
   });
 
   return httpServer;

@@ -1,7 +1,7 @@
 import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes,
+  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents,
   type User, type InsertUser,
   type Client, type InsertClient,
   type Case, type InsertCase,
@@ -10,6 +10,7 @@ import {
   type CommunicationLog, type InsertCommunicationLog,
   type Transaction, type InsertTransaction,
   type ClientNote, type InsertClientNote,
+  type WebhookEvent, type InsertWebhookEvent,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -71,6 +72,10 @@ export interface IStorage {
     totalExpenses: number;
     pendingTasks: number;
   }>;
+
+  createWebhookEvent(event: Partial<InsertWebhookEvent>): Promise<WebhookEvent>;
+  updateWebhookEvent(id: string, update: Partial<InsertWebhookEvent>): Promise<void>;
+  getWebhookEvents(limit?: number): Promise<WebhookEvent[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -270,6 +275,19 @@ export class DatabaseStorage implements IStorage {
 
   async deleteClientNote(id: string): Promise<void> {
     await db.delete(clientNotes).where(eq(clientNotes.id, id));
+  }
+
+  async createWebhookEvent(event: Partial<InsertWebhookEvent>): Promise<WebhookEvent> {
+    const [created] = await db.insert(webhookEvents).values(event as InsertWebhookEvent).returning();
+    return created;
+  }
+
+  async updateWebhookEvent(id: string, update: Partial<InsertWebhookEvent>): Promise<void> {
+    await db.update(webhookEvents).set(update).where(eq(webhookEvents.id, id));
+  }
+
+  async getWebhookEvents(limit = 100): Promise<WebhookEvent[]> {
+    return db.select().from(webhookEvents).orderBy(desc(webhookEvents.receivedAt)).limit(limit);
   }
 
   async getDashboardStats() {

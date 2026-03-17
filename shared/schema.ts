@@ -186,6 +186,32 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ─── Webhook Audit Log ──────────────────────────────────────────
+export const webhookAuthStatusEnum = pgEnum("webhook_auth_status", ["ok", "failed", "no_secret"]);
+export const webhookProcessStatusEnum = pgEnum("webhook_process_status", [
+  "received", "auth_failed", "validation_failed", "db_error", "created", "updated"
+]);
+
+export const webhookEvents = pgTable("webhook_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  receivedAt: timestamp("received_at").defaultNow(),
+  source: text("source").default("landy"),
+  rawHeaders: text("raw_headers"),
+  rawBody: text("raw_body"),
+  receivedSignature: text("received_signature"),
+  normalizedPayload: text("normalized_payload"),
+  authStatus: webhookAuthStatusEnum("auth_status"),
+  processingStatus: webhookProcessStatusEnum("processing_status").default("received"),
+  errorMessage: text("error_message"),
+  createdClientId: varchar("created_client_id"),
+  action: text("action"),
+});
+
+export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, receivedAt: true });
+export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
+export type WebhookEvent = typeof webhookEvents.$inferSelect;
+// ────────────────────────────────────────────────────────────────
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true, createdAt: true, updatedAt: true });

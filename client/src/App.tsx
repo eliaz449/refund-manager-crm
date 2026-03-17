@@ -12,6 +12,7 @@ import Clients from "@/pages/clients";
 import ClientDetail from "@/pages/client-detail";
 import Transactions from "@/pages/transactions";
 import Settings from "@/pages/settings";
+import WebhookEvents from "@/pages/webhook-events";
 import LoginPage from "@/pages/login";
 import { Loader2 } from "lucide-react";
 
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/payments"><Redirect to="/clients" /></Route>
       <Route path="/transactions" component={Transactions} />
       <Route path="/settings" component={Settings} />
+      <Route path="/webhook-events" component={WebhookEvents} />
       <Route component={NotFound} />
     </Switch>
   );

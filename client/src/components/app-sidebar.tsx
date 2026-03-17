@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Users,
-  ArrowLeftRight, Building2, LogOut, Settings
+  ArrowLeftRight, Building2, LogOut, Settings, Webhook
 } from "lucide-react";
 import {
   Sidebar,
@@ -22,6 +22,7 @@ const mainItems = [
   { title: "לוח בקרה", url: "/", icon: LayoutDashboard },
   { title: "לקוחות", url: "/clients", icon: Users },
   { title: "תנועות", url: "/transactions", icon: ArrowLeftRight },
+  { title: "Webhooks", url: "/webhook-events", icon: Webhook },
 ];
 
 export function AppSidebar() {
