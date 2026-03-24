@@ -249,6 +249,45 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ─── Reminders ─────────────────────────────────────────────────
+  app.get("/api/reminders/active", requireAuth, async (_req, res) => {
+    const active = await storage.getActiveReminders();
+    res.json(active);
+  });
+
+  app.get("/api/clients/:id/reminders", requireAuth, async (req, res) => {
+    const items = await storage.getRemindersByClient(req.params.id);
+    res.json(items);
+  });
+
+  app.get("/api/reminders", requireAuth, async (_req, res) => {
+    const all = await storage.getAllUpcomingReminders();
+    res.json(all);
+  });
+
+  app.post("/api/clients/:id/reminders", requireAuth, async (req, res) => {
+    const { content, reminderAt } = req.body;
+    if (!content || !reminderAt) return res.status(400).json({ message: "content and reminderAt required" });
+    const reminder = await storage.createReminder({
+      clientId: req.params.id,
+      content,
+      reminderAt: new Date(reminderAt),
+    });
+    res.status(201).json(reminder);
+  });
+
+  app.patch("/api/reminders/:id", requireAuth, async (req, res) => {
+    const updated = await storage.updateReminder(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ message: "Reminder not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/reminders/:id", requireAuth, async (req, res) => {
+    await storage.deleteReminder(req.params.id);
+    res.status(204).send();
+  });
+  // ────────────────────────────────────────────────────────────────
+
   // ─── Landy Webhook ─────────────────────────────────────────────
   const VALID_SOURCES = ["referral", "website", "social_media", "direct", "other"] as const;
   const maskVal = (s: string | undefined) => s ? `"${s.substring(0, 6)}..." (len=${s.length})` : "(not set)";

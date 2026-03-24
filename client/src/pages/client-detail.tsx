@@ -375,20 +375,10 @@ export default function ClientDetail() {
 
       {/* Contact Tracking Section */}
       <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
+        <CardHeader className="pb-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <PhoneCall className="w-4 h-4" />מעקב התקשרות
+            <PhoneCall className="w-4 h-4" />סטטוס קשר
           </h3>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => contactAttemptMutation.mutate()}
-            disabled={contactAttemptMutation.isPending}
-            data-testid="button-contact-attempt"
-          >
-            <PhoneOff className="w-4 h-4 ml-1" />
-            {contactAttemptMutation.isPending ? "רושם..." : "ניסיון התקשרות"}
-          </Button>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">

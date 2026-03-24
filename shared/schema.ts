@@ -86,6 +86,7 @@ export const clients = pgTable("clients", {
   lastCallDate: date("last_call_date"),
   assignedAccountantId: varchar("assigned_accountant_id"),
   clientDeclarationSigned: boolean("client_declaration_signed").default(false),
+  leadCriteria: text("lead_criteria"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: text("created_by"),
@@ -185,6 +186,22 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   used: boolean("used").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ─── Reminders ──────────────────────────────────────────────────
+export const reminders = pgTable("reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  content: text("content").notNull(),
+  reminderAt: timestamp("reminder_at").notNull(),
+  snoozedUntil: timestamp("snoozed_until"),
+  isDismissed: boolean("is_dismissed").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertReminderSchema = createInsertSchema(reminders).omit({ id: true, createdAt: true });
+export type InsertReminder = z.infer<typeof insertReminderSchema>;
+export type Reminder = typeof reminders.$inferSelect;
+// ────────────────────────────────────────────────────────────────
 
 // ─── Webhook Audit Log ──────────────────────────────────────────
 export const webhookAuthStatusEnum = pgEnum("webhook_auth_status", ["ok", "failed", "no_secret"]);

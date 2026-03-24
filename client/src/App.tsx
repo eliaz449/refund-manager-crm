@@ -15,6 +15,7 @@ import Settings from "@/pages/settings";
 import WebhookEvents from "@/pages/webhook-events";
 import LoginPage from "@/pages/login";
 import { Loader2 } from "lucide-react";
+import { ReminderNotifications } from "@/hooks/use-reminder-notifications";
 
 function Router() {
   return (
@@ -71,6 +72,7 @@ function AuthenticatedApp() {
           </main>
         </div>
       </div>
+      <ReminderNotifications />
     </SidebarProvider>
   );
 }

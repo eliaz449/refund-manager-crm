@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock } from "lucide-react";
+import {
+  Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock,
+  Bell, BellOff, ChevronDown, ChevronUp, Calendar
+} from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,32 +15,229 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Client } from "@shared/schema";
+import type { Client, Reminder } from "@shared/schema";
+import { format, isToday } from "date-fns";
+import { he } from "date-fns/locale";
 
 const sourceLabels: Record<string, string> = {
   referral: "הפניה",
   website: "אתר",
-  social_media: "רשתות חברתיות",
+  social_media: "רשתות",
   direct: "ישיר",
   recommended: "מומלצים",
   other: "אחר",
 };
+
+const contactStatusLabels: Record<string, string> = {
+  new: "חדש",
+  no_answer_1: "אין מענה 1",
+  no_answer_2: "אין מענה 2",
+  no_answer_3: "אין מענה 3",
+  no_answer_4: "אין מענה 4",
+  no_answer_5: "אין מענה 5",
+  no_answer_6: "אין מענה 6",
+  talked: "דיברנו",
+  sent_documents: "שלח מסמכים",
+  in_process: "בתהליך",
+  closed: "נסגר",
+  not_relevant: "לא רלוונטי",
+};
+
+function contactStatusColor(status: string | null): string {
+  if (!status) return "";
+  if (status === "new") return "bg-blue-50 dark:bg-blue-950/20";
+  if (status.startsWith("no_answer")) return "bg-red-50 dark:bg-red-950/20";
+  if (["talked", "sent_documents", "in_process"].includes(status)) return "bg-amber-50 dark:bg-amber-950/20";
+  if (status === "closed") return "bg-green-50 dark:bg-green-950/20";
+  return "";
+}
+
+function PhoneLink({ phone }: { phone: string }) {
+  return (
+    <a
+      href={`tel:${phone}`}
+      onClick={(e) => e.stopPropagation()}
+      className="flex items-center gap-1 text-primary font-medium hover:underline text-sm"
+      dir="ltr"
+      data-testid={`link-phone-${phone}`}
+    >
+      <Phone className="w-3 h-3 flex-shrink-0" />
+      {phone}
+    </a>
+  );
+}
+
+interface LeadCriteria {
+  jobChanged: boolean;
+  hasChildren: boolean;
+  employee: boolean;
+  selfEmployed: boolean;
+}
+
+function parseCriteria(raw: string | null | undefined): LeadCriteria {
+  try { return raw ? JSON.parse(raw) : {}; } catch { return {} as LeadCriteria; }
+}
+
+function CriteriaChecklist({ client }: { client: Client }) {
+  const { toast } = useToast();
+  const criteria = parseCriteria((client as any).leadCriteria);
+
+  const items: { key: keyof LeadCriteria; label: string }[] = [
+    { key: "jobChanged",  label: "החליף עבודה" },
+    { key: "hasChildren", label: "נולדו ילדים" },
+    { key: "employee",    label: "שכיר" },
+    { key: "selfEmployed",label: "עצמאי" },
+  ];
+
+  const updateMutation = useMutation({
+    mutationFn: (newCriteria: LeadCriteria) =>
+      apiRequest("PATCH", `/api/clients/${client.id}`, { leadCriteria: JSON.stringify(newCriteria) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/clients"] }),
+    onError: () => toast({ title: "שגיאה בשמירה", variant: "destructive" }),
+  });
+
+  function toggle(key: keyof LeadCriteria) {
+    const updated = { ...criteria, [key]: !criteria[key] };
+    updateMutation.mutate(updated);
+  }
+
+  return (
+    <div className="flex flex-wrap gap-3 py-1">
+      {items.map(({ key, label }) => (
+        <label
+          key={key}
+          className="flex items-center gap-1.5 cursor-pointer select-none text-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Checkbox
+            checked={!!criteria[key]}
+            onCheckedChange={() => toggle(key)}
+            data-testid={`checkbox-${key}-${client.id}`}
+          />
+          <span>{label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function AddReminderModal({
+  client,
+  open,
+  onClose,
+}: {
+  client: Client;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [content, setContent] = useState("");
+  const [reminderAt, setReminderAt] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/clients/${client.id}/reminders`, { content, reminderAt }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", client.id, "reminders"] });
+      toast({ title: "תזכורת נוצרה" });
+      setContent(""); setReminderAt("");
+      onClose();
+    },
+    onError: () => toast({ title: "שגיאה", variant: "destructive" }),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!content || !reminderAt) return;
+    createMutation.mutate();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bell className="w-4 h-4" />
+            תזכורת — {client.fullName}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>תוכן התזכורת</Label>
+            <Textarea
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              placeholder="לדוגמה: להתקשר ולבדוק מצב טפסים..."
+              rows={3}
+              required
+              data-testid="input-reminder-content"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>תאריך ושעה</Label>
+            <Input
+              type="datetime-local"
+              value={reminderAt}
+              onChange={e => setReminderAt(e.target.value)}
+              required
+              data-testid="input-reminder-datetime"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={createMutation.isPending} className="flex-1">
+              {createMutation.isPending ? "שומר..." : "צור תזכורת"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose}>ביטול</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReminderIndicator({ reminder }: { reminder: Reminder | undefined }) {
+  if (!reminder) return null;
+  const isPast = new Date(reminder.reminderAt) <= new Date();
+  return (
+    <div className={`flex items-center gap-1 text-xs ${isPast ? "text-red-600" : "text-amber-600"}`}>
+      <Bell className="w-3 h-3" />
+      <span className="whitespace-nowrap">
+        {format(new Date(reminder.reminderAt), "dd/MM HH:mm", { locale: he })}
+      </span>
+    </div>
+  );
+}
 
 export default function Clients() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClientSource, setNewClientSource] = useState("direct");
+  const [reminderClient, setReminderClient] = useState<Client | null>(null);
+  const [expandedCriteria, setExpandedCriteria] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const { data: clients, isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
+  const { data: allReminders = [] } = useQuery<Reminder[]>({ queryKey: ["/api/reminders"], refetchInterval: 60000 });
+
+  const remindersByClient = useMemo(() => {
+    const map: Record<string, Reminder> = {};
+    for (const r of allReminders) {
+      if (!map[r.clientId] || new Date(r.reminderAt) < new Date(map[r.clientId].reminderAt)) {
+        map[r.clientId] = r;
+      }
+    }
+    return map;
+  }, [allReminders]);
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, string>) => {
@@ -65,35 +265,84 @@ export default function Clients() {
     },
   });
 
-  const filtered = clients?.filter(c => {
-    const matchesSearch = c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      c.email?.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone?.includes(search);
-    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  }) || [];
+  const filtered = useMemo(() => {
+    return (clients || []).filter(c => {
+      const matchesSearch =
+        c.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        c.email?.toLowerCase().includes(search.toLowerCase()) ||
+        c.phone?.includes(search);
+      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [clients, search, statusFilter]);
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const aR = remindersByClient[a.id];
+      const bR = remindersByClient[b.id];
+      if (aR && !bR) return -1;
+      if (!aR && bR) return 1;
+      if (aR && bR) {
+        return new Date(aR.reminderAt).getTime() - new Date(bR.reminderAt).getTime();
+      }
+      const aToday = isToday(new Date(a.createdAt ?? 0));
+      const bToday = isToday(new Date(b.createdAt ?? 0));
+      if (aToday && !bToday) return -1;
+      if (!aToday && bToday) return 1;
+      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+    });
+  }, [filtered, remindersByClient]);
+
+  function toggleCriteria(id: string) {
+    setExpandedCriteria(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data: Record<string, string> = {};
-    formData.forEach((val, key) => {
-      if (val) data[key] = val.toString();
-    });
+    formData.forEach((val, key) => { if (val) data[key] = val.toString(); });
     createMutation.mutate(data);
   }
 
+  const contactStatusBadge = (status: string | null) => {
+    const label = contactStatusLabels[status || ""] || status;
+    const colors: Record<string, string> = {
+      new: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+      talked: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+      sent_documents: "bg-amber-100 text-amber-800",
+      in_process: "bg-amber-100 text-amber-800",
+      closed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      not_relevant: "bg-gray-100 text-gray-600",
+    };
+    const isNoAnswer = status?.startsWith("no_answer");
+    const colorClass = isNoAnswer
+      ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200"
+      : (colors[status || ""] || "bg-gray-100 text-gray-600");
+    return (
+      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${colorClass}`}>
+        {label}
+      </span>
+    );
+  };
+
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-auto h-full">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-auto h-full" dir="rtl">
       <PageHeader
         title="לקוחות"
         description={`${clients?.length || 0} לקוחות סה״כ`}
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-client" className="w-full sm:w-auto"><Plus className="w-4 h-4 ml-2" />הוסף לקוח</Button>
+              <Button data-testid="button-add-client" className="w-full sm:w-auto">
+                <Plus className="w-4 h-4 ml-2" />הוסף לקוח
+              </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
               <DialogHeader>
                 <DialogTitle>לקוח חדש</DialogTitle>
               </DialogHeader>
@@ -104,12 +353,12 @@ export default function Clients() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">אימייל</Label>
-                    <Input id="email" name="email" type="email" data-testid="input-client-email" />
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="phone">טלפון</Label>
                     <Input id="phone" name="phone" data-testid="input-client-phone" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">אימייל</Label>
+                    <Input id="email" name="email" type="email" data-testid="input-client-email" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -145,16 +394,8 @@ export default function Clients() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="taxId">תעודת זהות / ח.פ.</Label>
-                  <Input id="taxId" name="taxId" data-testid="input-client-taxid" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">כתובת</Label>
-                  <Input id="address" name="address" data-testid="input-client-address" />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="notes">הערות</Label>
-                  <Textarea id="notes" name="notes" rows={3} data-testid="input-client-notes" />
+                  <Textarea id="notes" name="notes" rows={2} data-testid="input-client-notes" />
                 </div>
                 <div className="flex justify-start gap-2">
                   <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-client">
@@ -168,6 +409,7 @@ export default function Clients() {
         }
       />
 
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-sm">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -195,14 +437,10 @@ export default function Clients() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-12 w-full" />
-              </CardContent>
-            </Card>
+            <Card key={i}><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState
           icon={search ? Search : Plus}
           title={search ? "לא נמצאו לקוחות תואמים" : "אין לקוחות עדיין"}
@@ -215,164 +453,221 @@ export default function Clients() {
         />
       ) : (
         <>
+          {/* ── Mobile cards ── */}
           <div className="md:hidden space-y-3">
-            {filtered.map(client => (
-              <Card
-                key={client.id}
-                className="hover-elevate cursor-pointer"
-                onClick={() => setLocation(`/clients/${client.id}`)}
-                data-testid={`card-client-${client.id}`}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm truncate" data-testid={`text-client-name-${client.id}`}>{client.fullName}</p>
-                        <StatusBadge status={client.status} />
+            {sorted.map(client => {
+              const nextReminder = remindersByClient[client.id];
+              const rowColor = contactStatusColor(client.contactStatus);
+              const criteriaOpen = expandedCriteria.has(client.id);
+              return (
+                <Card
+                  key={client.id}
+                  className={`cursor-pointer border ${rowColor}`}
+                  onClick={() => setLocation(`/clients/${client.id}`)}
+                  data-testid={`card-client-${client.id}`}
+                >
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-sm truncate" data-testid={`text-client-name-${client.id}`}>
+                            {client.fullName}
+                          </p>
+                          {nextReminder && <Bell className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
+                          <StatusBadge status={client.status} />
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {client.phone && <PhoneLink phone={client.phone} />}
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {client.clientType === "self_employed" ? "עצמאי" : "יחיד/שכיר"}
-                        {client.source ? ` · ${sourceLabels[client.source] || client.source}` : ""}
-                      </p>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
+                            <Eye className="w-4 h-4 ml-2" />צפה
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setReminderClient(client); }}>
+                            <Bell className="w-4 h-4 ml-2" />הוסף תזכורת
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
+                          >
+                            <Trash2 className="w-4 h-4 ml-2" />מחק
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
-                          <Eye className="w-4 h-4 ml-2" />צפה
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
-                        >
-                          <Trash2 className="w-4 h-4 ml-2" />מחק
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="flex flex-col gap-1 mt-2">
-                    {client.phone && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Phone className="w-3 h-3 flex-shrink-0" />
-                        <span dir="ltr">{client.phone}</span>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {contactStatusBadge(client.contactStatus)}
+                      {client.source && (
+                        <span className="text-xs text-muted-foreground">{sourceLabels[client.source] || client.source}</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{relativeTime(client.createdAt)}</span>
+                      </div>
+                      {nextReminder && <ReminderIndicator reminder={nextReminder} />}
+                    </div>
+
+                    <button
+                      className="w-full text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
+                      onClick={(e) => { e.stopPropagation(); toggleCriteria(client.id); }}
+                      data-testid={`button-toggle-criteria-${client.id}`}
+                    >
+                      {criteriaOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      קריטריונים
+                    </button>
+                    {criteriaOpen && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <CriteriaChecklist client={client} />
                       </div>
                     )}
-                    {client.email && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-                        <Mail className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{client.email}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3 flex-shrink-0" />
-                      <span>{formatDateTime(client.createdAt)}</span>
-                    </div>
-                    <StatusBadge status={client.clientProcessStatus} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
+          {/* ── Desktop table ── */}
           <Card className="hidden md:block">
             <CardContent className="p-0">
-              <Table className="table-fixed w-full">
+              <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[18%]">שם</TableHead>
-                    <TableHead className="w-[20%]">פרטי קשר</TableHead>
-                    <TableHead className="w-[10%]">סוג</TableHead>
-                    <TableHead className="w-[10%]">סטטוס</TableHead>
-                    <TableHead className="hidden lg:table-cell w-[10%]">תהליך</TableHead>
-                    <TableHead className="hidden lg:table-cell w-[10%]">מקור</TableHead>
-                    <TableHead className="w-[16%]">תאריך יצירה</TableHead>
-                    <TableHead className="w-[48px]"></TableHead>
+                    <TableHead className="text-right w-[180px]">שם</TableHead>
+                    <TableHead className="text-right w-[140px]">טלפון</TableHead>
+                    <TableHead className="text-right w-[120px]">סטטוס קשר</TableHead>
+                    <TableHead className="text-right hidden lg:table-cell w-[90px]">מקור</TableHead>
+                    <TableHead className="text-right w-[130px]">הגיע</TableHead>
+                    <TableHead className="text-right w-[120px]">תזכורת</TableHead>
+                    <TableHead className="text-right w-[130px]">קריטריונים</TableHead>
+                    <TableHead className="w-[90px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map(client => (
-                    <TableRow
-                      key={client.id}
-                      className="cursor-pointer"
-                      onClick={() => setLocation(`/clients/${client.id}`)}
-                      data-testid={`row-client-${client.id}`}
-                    >
-                      <TableCell className="truncate">
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate">{client.fullName}</p>
-                          <p className="text-xs text-muted-foreground truncate">{client.taxId || "ללא ת.ז."}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1 min-w-0">
-                          {client.email && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
-                              <Mail className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{client.email}</span>
+                  {sorted.map(client => {
+                    const nextReminder = remindersByClient[client.id];
+                    const rowColor = contactStatusColor(client.contactStatus);
+                    const criteriaOpen = expandedCriteria.has(client.id);
+                    return (
+                      <Fragment key={client.id}>
+                        <TableRow
+                          className={`cursor-pointer ${rowColor}`}
+                          onClick={() => setLocation(`/clients/${client.id}`)}
+                          data-testid={`row-client-${client.id}`}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {nextReminder && <Bell className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate" data-testid={`text-client-name-${client.id}`}>
+                                  {client.fullName}
+                                </p>
+                                <StatusBadge status={client.status} />
+                              </div>
                             </div>
-                          )}
-                          {client.phone && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Phone className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{client.phone}</span>
+                          </TableCell>
+                          <TableCell>
+                            {client.phone
+                              ? <PhoneLink phone={client.phone} />
+                              : <span className="text-xs text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell>
+                            {contactStatusBadge(client.contactStatus)}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <span className="text-xs text-muted-foreground">
+                              {sourceLabels[client.source || ""] || client.source || "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div data-testid={`text-created-at-${client.id}`}>
+                              <p className="text-xs">{formatDateTime(client.createdAt)}</p>
+                              <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
                             </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs">{client.clientType === "self_employed" ? "עצמאי" : "יחיד/שכיר"}</span>
-                      </TableCell>
-                      <TableCell><StatusBadge status={client.status} /></TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <StatusBadge status={client.clientProcessStatus} />
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <span className="text-xs text-muted-foreground">
-                          {sourceLabels[client.source || ""] || client.source}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-start gap-1.5" data-testid={`text-created-at-${client.id}`}>
-                          <Clock className="w-3 h-3 mt-0.5 text-muted-foreground flex-shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-xs whitespace-nowrap">{formatDateTime(client.createdAt)}</p>
-                            <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-[48px]">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button size="icon" variant="ghost" data-testid={`button-menu-client-${client.id}`}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
-                              <Eye className="w-4 h-4 ml-2" />צפה
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
+                          </TableCell>
+                          <TableCell>
+                            <ReminderIndicator reminder={nextReminder} />
+                            {!nextReminder && <span className="text-xs text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs gap-1 text-muted-foreground"
+                              onClick={() => toggleCriteria(client.id)}
+                              data-testid={`button-toggle-criteria-${client.id}`}
                             >
-                              <Trash2 className="w-4 h-4 ml-2" />מחק
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                              {criteriaOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              פרטים
+                            </Button>
+                          </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => setReminderClient(client)}
+                                title="הוסף תזכורת"
+                                data-testid={`button-add-reminder-${client.id}`}
+                              >
+                                <Bell className="w-3.5 h-3.5" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-menu-client-${client.id}`}>
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                  <DropdownMenuItem onClick={() => setLocation(`/clients/${client.id}`)}>
+                                    <Eye className="w-4 h-4 ml-2" />צפה
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => deleteMutation.mutate(client.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4 ml-2" />מחק
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+
+                        {criteriaOpen && (
+                          <TableRow className={rowColor}>
+                            <TableCell colSpan={8} className="py-2 px-4 bg-muted/30">
+                              <CriteriaChecklist client={client} />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </>
+      )}
+
+      {reminderClient && (
+        <AddReminderModal
+          client={reminderClient}
+          open={!!reminderClient}
+          onClose={() => setReminderClient(null)}
+        />
       )}
     </div>
   );

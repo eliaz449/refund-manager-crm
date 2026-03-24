@@ -64,7 +64,7 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 
 ## Database Entities
 - **Users** - Admin, User, Accountant roles
-- **Clients** - Full client lifecycle (lead → active → inactive) with process tracking, pricing (percentage/fixed/hourly), recommendedBy field
+- **Clients** - Full client lifecycle (lead → active → inactive) with process tracking, pricing (percentage/fixed/hourly), recommendedBy field, `leadCriteria` JSON field (jobChanged/hasChildren/employee/selfEmployed)
 - **Cases** - Tax refund cases, bookkeeping, reports with status tracking
 - **Tasks** - Task management with categories, priorities, assignments
 - **Payments** - Payment tracking with methods and status
@@ -72,6 +72,7 @@ A production-ready CRM platform for managing a tax refund and accounting firm. B
 - **Transactions** - Income/expense ledger
 - **Client Notes** - Timestamped notes history per client (append-only log with edit/delete)
 - **Password Reset Tokens** - Reset token storage with expiry and used flag
+- **Reminders** - Per-client timed reminders with snooze (snoozedUntil), dismiss, and content. Auto-shown as modal when due.
 
 ## Health & Deployment
 - `GET /api/health` returns `{ "status": "ok" }` — lightweight health endpoint
@@ -90,6 +91,10 @@ All endpoints prefixed with `/api/`:
 - `GET/POST /transactions`, `DELETE /transactions/:id`
 - `GET/POST /communications`
 - `GET/POST /clients/:clientId/notes`, `PATCH/DELETE /notes/:id`
+- `GET /clients/:id/reminders`, `POST /clients/:id/reminders` - Per-client reminders
+- `GET /reminders` - All upcoming non-dismissed reminders (for leads list)
+- `GET /reminders/active` - Reminders currently due (for notification polling)
+- `PATCH /reminders/:id`, `DELETE /reminders/:id` - Update/dismiss/snooze reminders
 - `GET /dashboard/stats`
 - `GET /users`
 - `POST /webhooks/landy` - Landy lead intake webhook (no session auth — uses signature)

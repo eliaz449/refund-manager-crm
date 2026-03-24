@@ -1,7 +1,7 @@
 import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents,
+  users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents, reminders,
   type User, type InsertUser,
   type Client, type InsertClient,
   type Case, type InsertCase,
@@ -11,6 +11,7 @@ import {
   type Transaction, type InsertTransaction,
   type ClientNote, type InsertClientNote,
   type WebhookEvent, type InsertWebhookEvent,
+  type Reminder, type InsertReminder,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -76,6 +77,13 @@ export interface IStorage {
   createWebhookEvent(event: Partial<InsertWebhookEvent>): Promise<WebhookEvent>;
   updateWebhookEvent(id: string, update: Partial<InsertWebhookEvent>): Promise<void>;
   getWebhookEvents(limit?: number): Promise<WebhookEvent[]>;
+
+  getRemindersByClient(clientId: string): Promise<Reminder[]>;
+  getActiveReminders(): Promise<Reminder[]>;
+  getAllUpcomingReminders(): Promise<Reminder[]>;
+  createReminder(reminder: InsertReminder): Promise<Reminder>;
+  updateReminder(id: string, update: Partial<InsertReminder>): Promise<Reminder | undefined>;
+  deleteReminder(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -288,6 +296,42 @@ export class DatabaseStorage implements IStorage {
 
   async getWebhookEvents(limit = 100): Promise<WebhookEvent[]> {
     return db.select().from(webhookEvents).orderBy(desc(webhookEvents.receivedAt)).limit(limit);
+  }
+
+  async getRemindersByClient(clientId: string): Promise<Reminder[]> {
+    return db.select().from(reminders)
+      .where(and(eq(reminders.clientId, clientId), eq(reminders.isDismissed, false)))
+      .orderBy(reminders.reminderAt);
+  }
+
+  async getActiveReminders(): Promise<Reminder[]> {
+    return db.select().from(reminders)
+      .where(and(
+        eq(reminders.isDismissed, false),
+        sql`(${reminders.snoozedUntil} IS NULL OR ${reminders.snoozedUntil} <= NOW())`,
+        sql`${reminders.reminderAt} <= NOW() + INTERVAL '1 minute'`
+      ))
+      .orderBy(reminders.reminderAt);
+  }
+
+  async getAllUpcomingReminders(): Promise<Reminder[]> {
+    return db.select().from(reminders)
+      .where(eq(reminders.isDismissed, false))
+      .orderBy(reminders.reminderAt);
+  }
+
+  async createReminder(reminder: InsertReminder): Promise<Reminder> {
+    const [created] = await db.insert(reminders).values(reminder).returning();
+    return created;
+  }
+
+  async updateReminder(id: string, update: Partial<InsertReminder>): Promise<Reminder | undefined> {
+    const [updated] = await db.update(reminders).set(update).where(eq(reminders.id, id)).returning();
+    return updated;
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    await db.delete(reminders).where(eq(reminders.id, id));
   }
 
   async getDashboardStats() {
