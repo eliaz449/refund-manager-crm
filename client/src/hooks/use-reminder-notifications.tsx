@@ -4,10 +4,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Bell, Phone, X, Clock } from "lucide-react";
-import type { Reminder } from "@shared/schema";
-import { useQuery as useClientQuery } from "@tanstack/react-query";
-import type { Client } from "@shared/schema";
+import type { Reminder, Client } from "@shared/schema";
 import { useLocation } from "wouter";
+import {
+  requestNotificationPermission,
+  showSystemNotification,
+  showToastNotification,
+} from "@/utils/notifications";
 
 function ReminderModal({
   reminder,
@@ -18,7 +21,7 @@ function ReminderModal({
   onDismiss: () => void;
   onSnooze: () => void;
 }) {
-  const { data: clients } = useClientQuery<Client[]>({ queryKey: ["/api/clients"] });
+  const { data: clients } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const client = clients?.find(c => c.id === reminder.clientId);
   const [, setLocation] = useLocation();
 
@@ -88,7 +91,6 @@ function ReminderModal({
 }
 
 export function ReminderNotifications() {
-  const [shown, setShown] = useState<Set<string>>(new Set());
   const [current, setCurrent] = useState<Reminder | null>(null);
   const notifiedRef = useRef<Set<string>>(new Set());
 
@@ -115,6 +117,12 @@ export function ReminderNotifications() {
     },
   });
 
+  // Request permission once on mount (safe — no crash if unsupported)
+  useEffect(() => {
+    requestNotificationPermission().catch(() => {});
+  }, []);
+
+  // Detect past-due reminders and trigger notification
   useEffect(() => {
     if (active.length === 0) return;
     const now = Date.now();
@@ -124,22 +132,16 @@ export function ReminderNotifications() {
         notifiedRef.current.add(r.id);
         setCurrent(r);
 
-        if ("Notification" in window && Notification.permission === "granted") {
-          new Notification("תזכורת CRM", {
-            body: r.content,
-            icon: "/favicon.ico",
-          });
-        }
+        // Always show in-app toast immediately
+        showToastNotification("🔔 תזכורת", r.content);
+
+        // Optionally show system notification (won't crash if unsupported)
+        showSystemNotification("תזכורת CRM", r.content).catch(() => {});
+
         break;
       }
     }
   }, [active]);
-
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
 
   if (!current) return null;
 
