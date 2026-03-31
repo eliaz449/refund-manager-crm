@@ -16,6 +16,7 @@ import WebhookEvents from "@/pages/webhook-events";
 import LoginPage from "@/pages/login";
 import { Loader2 } from "lucide-react";
 import { ReminderNotifications } from "@/hooks/use-reminder-notifications";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 function Router() {
   return (
@@ -68,11 +69,15 @@ function AuthenticatedApp() {
             </span>
           </header>
           <main className="flex-1 overflow-hidden">
-            <Router />
+            <ErrorBoundary name="router">
+              <Router />
+            </ErrorBoundary>
           </main>
         </div>
       </div>
-      <ReminderNotifications />
+      <ErrorBoundary name="reminders" fallback={null}>
+        <ReminderNotifications />
+      </ErrorBoundary>
     </SidebarProvider>
   );
 }
@@ -81,7 +86,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthenticatedApp />
+        <ErrorBoundary name="root">
+          <AuthenticatedApp />
+        </ErrorBoundary>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

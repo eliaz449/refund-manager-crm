@@ -16,6 +16,12 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  app.post("/api/client-error", async (req, res) => {
+    const { source, message, stack, componentStack } = req.body ?? {};
+    console.error(`[ClientError:${source}] ${message}\n${stack ?? ""}\n${componentStack ?? ""}`);
+    res.json({ ok: true });
+  });
+
   app.get("/api/dashboard/stats", requireAuth, async (_req, res) => {
     const stats = await storage.getDashboardStats();
     res.json(stats);
