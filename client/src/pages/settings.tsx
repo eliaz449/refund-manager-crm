@@ -24,7 +24,12 @@ export default function Settings() {
     try {
       const res = await apiRequest("POST", "/api/test-whatsapp", {});
       const data = await res.json();
-      setWaResult({ success: data.success, message: data.success ? "ההודעה נשלחה בהצלחה!" : (data.error ?? "שגיאה לא ידועה") });
+      if (data.success) {
+        const count = data.recipients ?? 1;
+        setWaResult({ success: true, message: `ההודעה נשלחה בהצלחה ל-${data.sent} מתוך ${count} מקבלים!` });
+      } else {
+        setWaResult({ success: false, message: data.error ?? "שגיאה לא ידועה" });
+      }
     } catch (err: any) {
       setWaResult({ success: false, message: err.message ?? "שגיאת רשת" });
     } finally {
@@ -186,8 +191,9 @@ export default function Settings() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground space-y-1">
-              <p>📋 <strong>WHATSAPP_API_SECRET</strong> — מפתח ה-API (מוגדר ב-Secrets)</p>
-              <p>📱 <strong>WHATSAPP_RECIPIENT_PHONE</strong> — מספר הטלפון המקבל (מוגדר ב-Env Vars)</p>
+              <p>🔑 <strong>WHATSAPP_API_SECRET</strong> — מפתח ה-API (מוגדר ב-Secrets)</p>
+              <p>📱 <strong>WHATSAPP_RECIPIENT_PHONES</strong> — מספרי הטלפון המקבלים, מופרדים בפסיק</p>
+              <p className="text-xs">לדוגמה: <span dir="ltr" className="font-mono bg-muted px-1 rounded">972501234567,972509876543</span></p>
             </div>
             <div className="flex flex-col gap-2">
               <Button

@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
-import { sendWhatsAppMessage, sendToDefaultRecipient, formatNewLeadMessage, formatReminderMessage } from "./whatsapp";
+import { sendWhatsAppMessage, sendToAllRecipients, getRecipientPhones, formatNewLeadMessage, formatReminderMessage } from "./whatsapp";
 
 const partialClientSchema = insertClientSchema.partial();
 const partialCaseSchema = insertCaseSchema.partial();
@@ -51,7 +51,7 @@ export async function registerRoutes(
     res.status(201).json(client);
     // Send WhatsApp notification for new leads (fire-and-forget, never blocks response)
     if (client.status === "lead") {
-      sendToDefaultRecipient(formatNewLeadMessage({
+      sendToAllRecipients(formatNewLeadMessage({
         name: client.fullName,
         phone: client.phone ?? "",
         source: client.source ?? "other",
@@ -455,7 +455,7 @@ export async function registerRoutes(
         action: "created",
       });
       // WhatsApp notification for new Landy lead (fire-and-forget)
-      sendToDefaultRecipient(formatNewLeadMessage({
+      sendToAllRecipients(formatNewLeadMessage({
         name: newClient.fullName,
         phone: newClient.phone ?? phone,
         source: "landy",
@@ -479,19 +479,18 @@ export async function registerRoutes(
 
   // ─── WhatsApp Test Endpoint ──────────────────────────────────────
   app.post("/api/test-whatsapp", requireAuth, async (req, res) => {
-    const { phone } = req.body ?? {};
-    const recipient = phone?.trim() || process.env.WHATSAPP_RECIPIENT_PHONE?.trim();
-    if (!recipient) {
-      return res.status(400).json({ success: false, error: "No phone configured. Set WHATSAPP_RECIPIENT_PHONE env var or pass phone in body." });
+    const phones = getRecipientPhones();
+    if (phones.length === 0) {
+      return res.status(400).json({ success: false, error: "No recipients configured. Set WHATSAPP_RECIPIENT_PHONES env var." });
     }
     const message = [
       "✅ בדיקת חיבור WhatsApp — TaxPro CRM",
       `זמן: ${new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
       "המערכת מחוברת ועובדת!",
     ].join("\n");
-    const result = await sendWhatsAppMessage(recipient, message);
-    console.log(`[WhatsApp] Test send to ${recipient.slice(0, 6)}***: ${result.success ? "OK" : result.error}`);
-    res.json(result);
+    const result = await sendToAllRecipients(message);
+    console.log(`[WhatsApp] Test broadcast: ${result.sent} sent, ${result.failed} failed`);
+    res.json({ success: result.sent > 0, sent: result.sent, failed: result.failed, recipients: phones.length });
   });
   // ────────────────────────────────────────────────────────────────
 

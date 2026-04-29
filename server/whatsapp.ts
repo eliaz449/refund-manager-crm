@@ -1,11 +1,12 @@
 /**
  * WhatsApp notification helper — backend only.
- * Uses buzagloidan.com API. Secret key and recipient phone
+ * Uses buzagloidan.com API. Secret key and recipient phones
  * are read from environment variables only (never exposed to frontend).
  *
  * Config (Replit Secrets / Env Vars):
- *   WHATSAPP_API_SECRET       — API secret key (Replit Secret)
- *   WHATSAPP_RECIPIENT_PHONE  — Default recipient in international format, e.g. 972501234567 (Env Var)
+ *   WHATSAPP_API_SECRET        — API secret key (Replit Secret)
+ *   WHATSAPP_RECIPIENT_PHONES  — Comma-separated list, e.g. 972501234567,972509876543 (Env Var)
+ *   WHATSAPP_RECIPIENT_PHONE   — Single phone fallback for backward compatibility (Env Var)
  */
 
 const API_BASE = "https://api.buzagloidan.com/api/v1";
@@ -17,10 +18,42 @@ export interface WhatsAppResult {
   error?: string;
 }
 
+export interface WhatsAppBroadcastResult {
+  sent: number;
+  failed: number;
+  results: Array<{ phone: string; result: WhatsAppResult }>;
+}
+
 /**
- * Send a WhatsApp message via buzagloidan.com.
- * @param phone  Recipient in international format without +, e.g. "972501234567"
- * @param message  Plain text message body
+ * Returns all configured recipient phone numbers.
+ * Merges WHATSAPP_RECIPIENT_PHONES (comma-separated) and
+ * WHATSAPP_RECIPIENT_PHONE (single, backward-compat). Deduplicates.
+ */
+export function getRecipientPhones(): string[] {
+  const seen = new Set<string>();
+  const phones: string[] = [];
+
+  const addPhone = (p: string) => {
+    const cleaned = p.trim().replace(/^\+/, "");
+    if (cleaned && !seen.has(cleaned)) {
+      seen.add(cleaned);
+      phones.push(cleaned);
+    }
+  };
+
+  // Multi-phone env var (primary)
+  const multi = process.env.WHATSAPP_RECIPIENT_PHONES?.trim();
+  if (multi) multi.split(",").forEach(addPhone);
+
+  // Single-phone env var (backward compat / fallback)
+  const single = process.env.WHATSAPP_RECIPIENT_PHONE?.trim();
+  if (single) addPhone(single);
+
+  return phones;
+}
+
+/**
+ * Send a WhatsApp message to a single phone number.
  */
 export async function sendWhatsAppMessage(
   phone: string,
@@ -32,8 +65,7 @@ export async function sendWhatsAppMessage(
     return { success: false, error: "WHATSAPP_API_SECRET not configured" };
   }
   if (!phone) {
-    console.warn("[WhatsApp] No recipient phone — skipping send");
-    return { success: false, error: "No recipient phone" };
+    return { success: false, error: "No recipient phone provided" };
   }
 
   const url = `${API_BASE}/${secret}`;
@@ -49,23 +81,48 @@ export async function sendWhatsAppMessage(
       console.log(`[WhatsApp] ✓ Sent to ${phone.slice(0, 6)}*** — status ${res.status}`);
       return { success: true, status: res.status, body };
     } else {
-      console.error(`[WhatsApp] ✗ API error ${res.status}:`, body);
+      console.error(`[WhatsApp] ✗ API error ${res.status} for ${phone.slice(0, 6)}***:`, body);
       return { success: false, status: res.status, body, error: `API returned ${res.status}` };
     }
   } catch (err: any) {
-    console.error("[WhatsApp] ✗ Network error:", err.message);
+    console.error(`[WhatsApp] ✗ Network error for ${phone.slice(0, 6)}***:`, err.message);
     return { success: false, error: err.message };
   }
 }
 
-/** Send to the default recipient (WHATSAPP_RECIPIENT_PHONE) */
-export async function sendToDefaultRecipient(message: string): Promise<WhatsAppResult> {
-  const phone = process.env.WHATSAPP_RECIPIENT_PHONE?.trim();
-  if (!phone) {
-    console.warn("[WhatsApp] WHATSAPP_RECIPIENT_PHONE is not configured — skipping send");
-    return { success: false, error: "WHATSAPP_RECIPIENT_PHONE not configured" };
+/**
+ * Broadcast a message to ALL configured recipients.
+ * Sends to each phone independently; one failure doesn't stop others.
+ */
+export async function sendToAllRecipients(message: string): Promise<WhatsAppBroadcastResult> {
+  const phones = getRecipientPhones();
+  if (phones.length === 0) {
+    console.warn("[WhatsApp] No recipients configured (set WHATSAPP_RECIPIENT_PHONES)");
+    return { sent: 0, failed: 0, results: [] };
   }
-  return sendWhatsAppMessage(phone, message);
+
+  console.log(`[WhatsApp] Broadcasting to ${phones.length} recipient(s)`);
+  const results: WhatsAppBroadcastResult["results"] = [];
+  let sent = 0;
+  let failed = 0;
+
+  await Promise.all(
+    phones.map(async (phone) => {
+      const result = await sendWhatsAppMessage(phone, message);
+      results.push({ phone, result });
+      if (result.success) sent++; else failed++;
+    })
+  );
+
+  console.log(`[WhatsApp] Broadcast done — ✓ ${sent} sent, ✗ ${failed} failed`);
+  return { sent, failed, results };
+}
+
+/** @deprecated Use sendToAllRecipients instead */
+export async function sendToDefaultRecipient(message: string): Promise<WhatsAppResult> {
+  const result = await sendToAllRecipients(message);
+  const first = result.results[0];
+  return first?.result ?? { success: result.sent > 0, error: result.sent === 0 ? "No recipients" : undefined };
 }
 
 /** Format a new-lead WhatsApp message */

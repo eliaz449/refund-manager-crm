@@ -4,7 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { sendToDefaultRecipient, formatReminderMessage } from "./whatsapp";
+import { sendToAllRecipients, formatReminderMessage } from "./whatsapp";
 
 const app = express();
 const httpServer = createServer(app);
@@ -128,9 +128,9 @@ app.use((req, res, next) => {
             clientName: client?.fullName ?? "לקוח לא ידוע",
             reminderAt: reminder.reminderAt,
           });
-          const result = await sendToDefaultRecipient(msg);
+          const result = await sendToAllRecipients(msg);
           await storage.markReminderWhatsappNotified(reminder.id);
-          console.log(`[WhatsApp] Reminder ${reminder.id} → ${result.success ? "✓ sent" : "✗ " + result.error}`);
+          console.log(`[WhatsApp] Reminder ${reminder.id} → ✓ ${result.sent} sent, ✗ ${result.failed} failed`);
         } catch (err: any) {
           console.error(`[WhatsApp] Reminder ${reminder.id} error:`, err.message);
         }
