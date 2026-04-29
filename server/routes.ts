@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
-import { sendWhatsAppMessage, sendToAllRecipients, getRecipientPhones, formatNewLeadMessage, formatReminderMessage } from "./whatsapp";
+import { sendToAllRecipients, getRecipientPhones, formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
 
 const partialClientSchema = insertClientSchema.partial();
 const partialCaseSchema = insertCaseSchema.partial();
@@ -50,21 +50,26 @@ export async function registerRoutes(
     const client = await storage.createClient(parsed.data);
     res.status(201).json(client);
     // Send WhatsApp notification for new leads (fire-and-forget, never blocks response)
-    console.log(`[WhatsApp:Lead] New client created — id=${client.id}, status=${client.status}, name=${client.fullName}`);
+    console.log(`[WhatsApp:Lead] Client created — id=${client.id}, status=${client.status}, name=${client.fullName}`);
     if (client.status === "lead") {
-      console.log(`[WhatsApp:Lead] Status is 'lead' — triggering WhatsApp broadcast`);
-      const msg = formatNewLeadMessage({
-        name: client.fullName,
-        phone: client.phone ?? "",
-        source: client.source ?? "other",
-        createdAt: client.createdAt ?? new Date(),
-      });
-      console.log(`[WhatsApp:Lead] Message generated (${msg.length} chars)`);
-      sendToAllRecipients(msg).then(result => {
-        console.log(`[WhatsApp:Lead] Broadcast result — sent=${result.sent}, failed=${result.failed}`);
-      }).catch(err => console.error("[WhatsApp:Lead] Broadcast error:", err));
+      if (isLeadAlreadyNotified(client.id)) {
+        console.log(`[WhatsApp:Lead] ⚠️  Skipping duplicate — id=${client.id} already notified`);
+      } else {
+        markLeadNotified(client.id);
+        const recipients = getRecipientPhones();
+        console.log(`[WhatsApp:Lead] Recipients (${recipients.length}): ${recipients.join(", ")}`);
+        const msg = formatNewLeadMessage({
+          name: client.fullName,
+          phone: client.phone ?? "",
+          source: client.source ?? "other",
+          createdAt: client.createdAt ?? new Date(),
+        });
+        sendToAllRecipients(msg).then(result => {
+          console.log(`[WhatsApp:Lead] ✅ Done — sent=${result.sent}, failed=${result.failed}`);
+        }).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
+      }
     } else {
-      console.log(`[WhatsApp:Lead] Status is '${client.status}' — skipping WhatsApp (only sent for 'lead')`);
+      console.log(`[WhatsApp:Lead] Status='${client.status}' — no WA (only sent for 'lead')`);
     }
   });
 
@@ -462,13 +467,24 @@ export async function registerRoutes(
         createdClientId: newClient.id,
         action: "created",
       });
-      // WhatsApp notification for new Landy lead (fire-and-forget)
-      sendToAllRecipients(formatNewLeadMessage({
-        name: newClient.fullName,
-        phone: newClient.phone ?? phone,
-        source: "landy",
-        createdAt: newClient.createdAt ?? new Date(),
-      })).catch(err => console.error("[WhatsApp] Landy lead notify error:", err));
+      // WhatsApp notification for new Landy lead (fire-and-forget, deduped)
+      console.log(`[WhatsApp:Landy] Lead id=${newClient.id}, name=${newClient.fullName}`);
+      if (isLeadAlreadyNotified(newClient.id)) {
+        console.log(`[WhatsApp:Landy] ⚠️  Skipping duplicate — id=${newClient.id} already notified`);
+      } else {
+        markLeadNotified(newClient.id);
+        const recipients = getRecipientPhones();
+        console.log(`[WhatsApp:Landy] Recipients (${recipients.length}): ${recipients.join(", ")}`);
+        const msg = formatNewLeadMessage({
+          name: newClient.fullName,
+          phone: newClient.phone ?? phone,
+          source: "landy",
+          createdAt: newClient.createdAt ?? new Date(),
+        });
+        sendToAllRecipients(msg).then(r => {
+          console.log(`[WhatsApp:Landy] ✅ Done — sent=${r.sent}, failed=${r.failed}`);
+        }).catch(err => console.error("[WhatsApp:Landy] ❌ Error:", err));
+      }
       return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
 
     } catch (err: any) {
