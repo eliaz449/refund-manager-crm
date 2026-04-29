@@ -514,7 +514,17 @@ export async function registerRoutes(
     ].join("\n");
     const result = await sendToAllRecipients(message);
     console.log(`[WhatsApp] Test broadcast: ${result.sent} sent, ${result.failed} failed`);
-    res.json({ success: result.sent > 0, sent: result.sent, failed: result.failed, recipients: phones.length });
+    const errorDetails = result.results
+      .filter(r => !r.result.success)
+      .map(r => `${r.phone}: ${r.result.error ?? "unknown"}`)
+      .join("; ");
+    res.json({
+      success: result.sent > 0,
+      sent: result.sent,
+      failed: result.failed,
+      recipients: phones.length,
+      ...(errorDetails ? { error: errorDetails } : {}),
+    });
   });
   // ────────────────────────────────────────────────────────────────
 
