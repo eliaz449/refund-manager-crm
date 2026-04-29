@@ -4,7 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { sendToAllRecipients, formatReminderMessage } from "./whatsapp";
+import { sendToAllRecipients, formatReminderMessage, logWhatsAppConfig } from "./whatsapp";
 
 const app = express();
 const httpServer = createServer(app);
@@ -109,6 +109,7 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      logWhatsAppConfig();
     },
   );
 

@@ -50,13 +50,21 @@ export async function registerRoutes(
     const client = await storage.createClient(parsed.data);
     res.status(201).json(client);
     // Send WhatsApp notification for new leads (fire-and-forget, never blocks response)
+    console.log(`[WhatsApp:Lead] New client created — id=${client.id}, status=${client.status}, name=${client.fullName}`);
     if (client.status === "lead") {
-      sendToAllRecipients(formatNewLeadMessage({
+      console.log(`[WhatsApp:Lead] Status is 'lead' — triggering WhatsApp broadcast`);
+      const msg = formatNewLeadMessage({
         name: client.fullName,
         phone: client.phone ?? "",
         source: client.source ?? "other",
         createdAt: client.createdAt ?? new Date(),
-      })).catch(err => console.error("[WhatsApp] Lead notify error:", err));
+      });
+      console.log(`[WhatsApp:Lead] Message generated (${msg.length} chars)`);
+      sendToAllRecipients(msg).then(result => {
+        console.log(`[WhatsApp:Lead] Broadcast result — sent=${result.sent}, failed=${result.failed}`);
+      }).catch(err => console.error("[WhatsApp:Lead] Broadcast error:", err));
+    } else {
+      console.log(`[WhatsApp:Lead] Status is '${client.status}' — skipping WhatsApp (only sent for 'lead')`);
     }
   });
 
