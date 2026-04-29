@@ -1,15 +1,20 @@
 /**
  * WhatsApp notification helper — backend only.
- * Uses buzagloidan.com API. Secret key and recipient phones
- * are read from environment variables only (never exposed to frontend).
+ *
+ * API: POST https://api.tdo.co.il/send
+ * Headers:
+ *   Authorization: Bearer <WHATSAPP_API_SECRET>
+ *   Content-Type: application/json
+ * Body:
+ *   { "phone": "972XXXXXXXXX", "message": "text" }
  *
  * Config (Replit Secrets / Env Vars):
- *   WHATSAPP_API_SECRET        — API secret key (Replit Secret)
- *   WHATSAPP_RECIPIENT_PHONES  — Comma-separated, no spaces: 972501234567,972509876543
+ *   WHATSAPP_API_SECRET        — Bearer token (Replit Secret)
+ *   WHATSAPP_RECIPIENT_PHONES  — Comma-separated, no spaces: 972XXXXXXXXX,972YYYYYYYYY
  *   WHATSAPP_RECIPIENT_PHONE   — Single phone fallback (backward compat)
  */
 
-const API_BASE = "https://api.buzagloidan.com/api/v1";
+const API_URL = "https://api.tdo.co.il/send";
 
 export interface WhatsAppResult {
   success: boolean;
@@ -32,7 +37,6 @@ const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function markLeadNotified(clientId: string): void {
   _sentLeadIds.set(clientId, Date.now());
-  // Cleanup old entries
   const cutoff = Date.now() - DEDUP_TTL_MS;
   for (const [id, ts] of _sentLeadIds.entries()) {
     if (ts < cutoff) _sentLeadIds.delete(id);
@@ -51,15 +55,13 @@ export function isLeadAlreadyNotified(clientId: string): boolean {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Returns all configured recipient phone numbers.
- * Merges WHATSAPP_RECIPIENT_PHONES (comma-separated) and
- * WHATSAPP_RECIPIENT_PHONE (single, backward-compat). Deduplicates.
+ * Returns all configured recipient phone numbers (deduped, stripped of +).
  */
 export function getRecipientPhones(): string[] {
   const seen = new Set<string>();
   const phones: string[] = [];
 
-  const addPhone = (p: string) => {
+  const add = (p: string) => {
     const cleaned = p.trim().replace(/^\+/, "");
     if (cleaned && !seen.has(cleaned)) {
       seen.add(cleaned);
@@ -68,16 +70,16 @@ export function getRecipientPhones(): string[] {
   };
 
   const multi = process.env.WHATSAPP_RECIPIENT_PHONES?.trim();
-  if (multi) multi.split(",").forEach(addPhone);
+  if (multi) multi.split(",").forEach(add);
 
   const single = process.env.WHATSAPP_RECIPIENT_PHONE?.trim();
-  if (single) addPhone(single);
+  if (single) add(single);
 
   return phones;
 }
 
 /**
- * Log current WhatsApp config state (no secret values exposed).
+ * Print WhatsApp config to server log on startup.
  */
 export function logWhatsAppConfig(): void {
   const secret = process.env.WHATSAPP_API_SECRET?.trim();
@@ -85,103 +87,112 @@ export function logWhatsAppConfig(): void {
   const single = process.env.WHATSAPP_RECIPIENT_PHONE?.trim();
   const phones = getRecipientPhones();
 
-  console.log("[WhatsApp:Config] ─────────────────────────────────────");
-  console.log(`[WhatsApp:Config] WHATSAPP_API_SECRET        : ${secret ? `SET (${secret.length} chars)` : "❌ NOT SET"}`);
+  console.log("[WhatsApp:Config] ─────────────────────────────────────────");
+  console.log(`[WhatsApp:Config] API URL                    : ${API_URL}`);
+  console.log(`[WhatsApp:Config] WHATSAPP_API_SECRET        : ${secret ? `SET (${secret.length} chars, starts: ${secret.slice(0, 6)}***)` : "❌ NOT SET"}`);
   console.log(`[WhatsApp:Config] WHATSAPP_RECIPIENT_PHONES  : ${multi !== undefined ? `"${multi}"` : "❌ NOT SET"}`);
   console.log(`[WhatsApp:Config] WHATSAPP_RECIPIENT_PHONE   : ${single ? `"${single.slice(0, 6)}***"` : "NOT SET (optional)"}`);
-  console.log(`[WhatsApp:Config] Resolved recipients (${phones.length}): ${phones.map((p, i) => `#${i + 1} ${p.slice(0, 6)}*** (${p.length} digits)`).join(", ") || "none"}`);
-  console.log("[WhatsApp:Config] ─────────────────────────────────────");
+  console.log(`[WhatsApp:Config] Resolved recipients (${phones.length}): ${phones.length ? phones.map((p, i) => `#${i + 1} ${p}`).join(", ") : "none ❌"}`);
+  console.log("[WhatsApp:Config] ─────────────────────────────────────────");
 }
 
 /**
- * Send a WhatsApp message to a single phone number via Buzaglo API.
+ * Send ONE WhatsApp message to ONE phone via TDO API.
+ *
+ * POST https://api.tdo.co.il/send
+ * Authorization: Bearer <secret>
+ * Content-Type: application/json
+ * { "phone": "972XXXXXXXXX", "message": "text" }
  */
 export async function sendWhatsAppMessage(
   phone: string,
-  message: string
+  message: string,
 ): Promise<WhatsAppResult> {
   const secret = process.env.WHATSAPP_API_SECRET?.trim();
 
   if (!secret) {
-    console.error("[WhatsApp] ❌ WHATSAPP_API_SECRET is not configured — cannot send");
+    console.error("[WhatsApp] ❌ WHATSAPP_API_SECRET not set — cannot send");
     return { success: false, error: "WHATSAPP_API_SECRET not configured" };
   }
   if (!phone) {
-    console.error("[WhatsApp] ❌ No recipient phone provided");
-    return { success: false, error: "No recipient phone provided" };
+    console.error("[WhatsApp] ❌ No phone provided");
+    return { success: false, error: "No recipient phone" };
   }
 
-  const url = `${API_BASE}/${secret}`;
+  // Build the exact JSON body the TDO API expects
+  const requestBody = { phone, message };
 
-  // IMPORTANT: Buzaglo API requires application/x-www-form-urlencoded.
-  // Sending JSON causes the raw JSON string to appear as the WhatsApp message text.
-  const formBody = new URLSearchParams({ phone, message }).toString();
-
-  console.log(`[WhatsApp] ─── Sending to ${phone.slice(0, 6)}*** ──────────────`);
-  console.log(`[WhatsApp] → Recipient phone : ${phone}`);
-  console.log(`[WhatsApp] → Message (${message.length} chars):\n${message}`);
-  console.log(`[WhatsApp] → POST ${API_BASE}/[secret]`);
-  console.log(`[WhatsApp] → Content-Type: application/x-www-form-urlencoded`);
-  console.log(`[WhatsApp] → Form params: phone=${phone}, message=[${message.length} chars]`);
+  console.log(`[WhatsApp] ──────────────────────────────────────────────`);
+  console.log(`[WhatsApp] → Sending to phone : ${phone}`);
+  console.log(`[WhatsApp] → POST ${API_URL}`);
+  console.log(`[WhatsApp] → Authorization   : Bearer ${secret.slice(0, 6)}***`);
+  console.log(`[WhatsApp] → Content-Type    : application/json`);
+  console.log(`[WhatsApp] → Request body    : ${JSON.stringify(requestBody)}`);
+  console.log(`[WhatsApp] → Message text    :\n${message}`);
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: formBody,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${secret}`,
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    let body: unknown;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      body = await res.json().catch(() => null);
+    let responseBody: unknown;
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct.includes("application/json")) {
+      responseBody = await res.json().catch(() => null);
     } else {
-      body = await res.text().catch(() => null);
+      responseBody = await res.text().catch(() => null);
     }
 
-    console.log(`[WhatsApp] ← Status: ${res.status} | Body: ${JSON.stringify(body)}`);
+    console.log(`[WhatsApp] ← HTTP status     : ${res.status}`);
+    console.log(`[WhatsApp] ← Response body   : ${JSON.stringify(responseBody)}`);
 
     if (res.ok) {
-      console.log(`[WhatsApp] ✅ Delivered to ${phone.slice(0, 6)}***`);
-      return { success: true, status: res.status, body };
+      console.log(`[WhatsApp] ✅ Message accepted for ${phone}`);
+      return { success: true, status: res.status, body: responseBody };
     } else {
-      console.error(`[WhatsApp] ❌ API error ${res.status} for ${phone.slice(0, 6)}***:`, body);
-      return { success: false, status: res.status, body, error: `API ${res.status}: ${JSON.stringify(body)}` };
+      console.error(`[WhatsApp] ❌ API error ${res.status} for ${phone}:`, responseBody);
+      return { success: false, status: res.status, body: responseBody, error: `HTTP ${res.status}: ${JSON.stringify(responseBody)}` };
     }
   } catch (err: any) {
-    console.error(`[WhatsApp] ❌ Network error for ${phone.slice(0, 6)}***:`, err.message);
-    return { success: false, error: err.message };
+    // Could not resolve host or network failure
+    console.error(`[WhatsApp] ❌ Network error sending to ${phone}: ${err.message}`);
+    console.error(`[WhatsApp]    URL attempted: ${API_URL}`);
+    console.error(`[WhatsApp]    Hint: verify domain is reachable from this server`);
+    return { success: false, error: `Network error: ${err.message}` };
   }
 }
 
 /**
- * Broadcast a message to ALL configured recipients.
+ * Broadcast one message to ALL configured recipients.
+ * Each phone gets its own separate API request.
  */
 export async function sendToAllRecipients(message: string): Promise<WhatsAppBroadcastResult> {
   const phones = getRecipientPhones();
 
   if (phones.length === 0) {
-    const raw = process.env.WHATSAPP_RECIPIENT_PHONES;
-    console.warn(`[WhatsApp] ❌ No recipients configured! Raw env value: "${raw ?? "undefined"}"`);
-    console.warn(`[WhatsApp]   Set WHATSAPP_RECIPIENT_PHONES=972XXXXXXXXX,972YYYYYYYYY`);
+    console.warn(`[WhatsApp] ❌ No recipients! WHATSAPP_RECIPIENT_PHONES="${process.env.WHATSAPP_RECIPIENT_PHONES ?? "undefined"}"`);
+    console.warn(`[WhatsApp]    Set: WHATSAPP_RECIPIENT_PHONES=972XXXXXXXXX,972YYYYYYYYY`);
     return { sent: 0, failed: 0, results: [] };
   }
 
-  console.log(`[WhatsApp] Broadcasting to ${phones.length} recipient(s): ${phones.map((p, i) => `#${i + 1}=${p}`).join(", ")}`);
+  console.log(`[WhatsApp] Broadcasting to ${phones.length} recipient(s): ${phones.join(", ")}`);
 
   const results: WhatsAppBroadcastResult["results"] = [];
-  let sent = 0;
-  let failed = 0;
+  let sent = 0, failed = 0;
 
-  await Promise.all(
-    phones.map(async (phone) => {
-      const result = await sendWhatsAppMessage(phone, message);
-      results.push({ phone, result });
-      if (result.success) sent++; else failed++;
-    })
-  );
+  // Sequential (not parallel) to avoid race conditions and rate limits
+  for (const phone of phones) {
+    const result = await sendWhatsAppMessage(phone, message);
+    results.push({ phone, result });
+    if (result.success) sent++; else failed++;
+  }
 
-  console.log(`[WhatsApp] Broadcast complete — ✅ ${sent} sent, ❌ ${failed} failed`);
+  console.log(`[WhatsApp] ✅ Broadcast done — sent: ${sent}, failed: ${failed} (of ${phones.length} total)`);
   return { sent, failed, results };
 }
 
@@ -192,7 +203,7 @@ export async function sendToDefaultRecipient(message: string): Promise<WhatsAppR
   return first?.result ?? { success: result.sent > 0, error: result.sent === 0 ? "No recipients" : undefined };
 }
 
-/** Format a new-lead WhatsApp message (requested format with emojis) */
+/** Format a new-lead WhatsApp message */
 export function formatNewLeadMessage(params: {
   name: string;
   phone: string;
