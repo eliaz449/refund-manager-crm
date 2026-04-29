@@ -112,18 +112,23 @@ export async function sendWhatsAppMessage(
   }
 
   const url = `${API_BASE}/${secret}`;
-  const payload = { phone, message };
+
+  // IMPORTANT: Buzaglo API requires application/x-www-form-urlencoded.
+  // Sending JSON causes the raw JSON string to appear as the WhatsApp message text.
+  const formBody = new URLSearchParams({ phone, message }).toString();
 
   console.log(`[WhatsApp] ─── Sending to ${phone.slice(0, 6)}*** ──────────────`);
-  console.log(`[WhatsApp] → Recipient: ${phone}`);
+  console.log(`[WhatsApp] → Recipient phone : ${phone}`);
   console.log(`[WhatsApp] → Message (${message.length} chars):\n${message}`);
   console.log(`[WhatsApp] → POST ${API_BASE}/[secret]`);
+  console.log(`[WhatsApp] → Content-Type: application/x-www-form-urlencoded`);
+  console.log(`[WhatsApp] → Form params: phone=${phone}, message=[${message.length} chars]`);
 
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formBody,
     });
 
     let body: unknown;
