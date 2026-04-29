@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle, User, Lock } from "lucide-react";
+import { Loader2, CheckCircle, User, Lock, MessageCircle, Send } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Settings() {
   const { user, changePassword } = useAuth();
@@ -14,6 +15,22 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [waTesting, setWaTesting] = useState(false);
+  const [waResult, setWaResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestWhatsApp = async () => {
+    setWaTesting(true);
+    setWaResult(null);
+    try {
+      const res = await apiRequest("POST", "/api/test-whatsapp", {});
+      const data = await res.json();
+      setWaResult({ success: data.success, message: data.success ? "ההודעה נשלחה בהצלחה!" : (data.error ?? "שגיאה לא ידועה") });
+    } catch (err: any) {
+      setWaResult({ success: false, message: err.message ?? "שגיאת רשת" });
+    } finally {
+      setWaTesting(false);
+    }
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,6 +172,48 @@ export default function Settings() {
                 )}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-green-600" />
+              התראות WhatsApp
+            </CardTitle>
+            <CardDescription>
+              שליחת הודעות WhatsApp אוטומטיות על לידים חדשים ותזכורות
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>📋 <strong>WHATSAPP_API_SECRET</strong> — מפתח ה-API (מוגדר ב-Secrets)</p>
+              <p>📱 <strong>WHATSAPP_RECIPIENT_PHONE</strong> — מספר הטלפון המקבל (מוגדר ב-Env Vars)</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 w-fit border-green-300 text-green-700 hover:bg-green-50"
+                onClick={handleTestWhatsApp}
+                disabled={waTesting}
+                data-testid="button-test-whatsapp"
+              >
+                {waTesting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                {waTesting ? "שולח..." : "שלח הודעת בדיקה"}
+              </Button>
+              {waResult && (
+                <div
+                  className={`text-sm flex items-center gap-1.5 ${waResult.success ? "text-green-600" : "text-destructive"}`}
+                  data-testid="text-whatsapp-result"
+                >
+                  {waResult.success ? <CheckCircle className="w-4 h-4" /> : null}
+                  {waResult.message}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

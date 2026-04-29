@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
+import { sendWhatsAppMessage, sendToDefaultRecipient, formatNewLeadMessage, formatReminderMessage } from "./whatsapp";
 
 const partialClientSchema = insertClientSchema.partial();
 const partialCaseSchema = insertCaseSchema.partial();
@@ -48,6 +49,15 @@ export async function registerRoutes(
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const client = await storage.createClient(parsed.data);
     res.status(201).json(client);
+    // Send WhatsApp notification for new leads (fire-and-forget, never blocks response)
+    if (client.status === "lead") {
+      sendToDefaultRecipient(formatNewLeadMessage({
+        name: client.fullName,
+        phone: client.phone ?? "",
+        source: client.source ?? "other",
+        createdAt: client.createdAt ?? new Date(),
+      })).catch(err => console.error("[WhatsApp] Lead notify error:", err));
+    }
   });
 
   app.patch("/api/clients/:id", requireAuth, async (req, res) => {
@@ -444,6 +454,13 @@ export async function registerRoutes(
         createdClientId: newClient.id,
         action: "created",
       });
+      // WhatsApp notification for new Landy lead (fire-and-forget)
+      sendToDefaultRecipient(formatNewLeadMessage({
+        name: newClient.fullName,
+        phone: newClient.phone ?? phone,
+        source: "landy",
+        createdAt: newClient.createdAt ?? new Date(),
+      })).catch(err => console.error("[WhatsApp] Landy lead notify error:", err));
       return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
 
     } catch (err: any) {
@@ -459,6 +476,24 @@ export async function registerRoutes(
     const events = await storage.getWebhookEvents(200);
     res.json(events);
   });
+
+  // ─── WhatsApp Test Endpoint ──────────────────────────────────────
+  app.post("/api/test-whatsapp", requireAuth, async (req, res) => {
+    const { phone } = req.body ?? {};
+    const recipient = phone?.trim() || process.env.WHATSAPP_RECIPIENT_PHONE?.trim();
+    if (!recipient) {
+      return res.status(400).json({ success: false, error: "No phone configured. Set WHATSAPP_RECIPIENT_PHONE env var or pass phone in body." });
+    }
+    const message = [
+      "✅ בדיקת חיבור WhatsApp — TaxPro CRM",
+      `זמן: ${new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
+      "המערכת מחוברת ועובדת!",
+    ].join("\n");
+    const result = await sendWhatsAppMessage(recipient, message);
+    console.log(`[WhatsApp] Test send to ${recipient.slice(0, 6)}***: ${result.success ? "OK" : result.error}`);
+    res.json(result);
+  });
+  // ────────────────────────────────────────────────────────────────
 
   return httpServer;
 }

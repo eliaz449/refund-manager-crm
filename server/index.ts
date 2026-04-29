@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupAuth } from "./auth";
+import { storage } from "./storage";
+import { sendToDefaultRecipient, formatReminderMessage } from "./whatsapp";
 
 const app = express();
 const httpServer = createServer(app);
@@ -109,4 +111,33 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  // ─── WhatsApp Reminder Scheduler ──────────────────────────────────
+  // Runs every 60 seconds — finds reminders that are past-due and
+  // haven't had a WhatsApp sent yet, sends one, then marks them done.
+  setInterval(async () => {
+    try {
+      const pending = await storage.getPendingWhatsappReminders();
+      if (pending.length === 0) return;
+      console.log(`[WhatsApp] Scheduler: ${pending.length} pending reminder(s)`);
+      for (const reminder of pending) {
+        try {
+          const client = await storage.getClient(reminder.clientId);
+          const msg = formatReminderMessage({
+            taskTitle: reminder.content,
+            clientName: client?.fullName ?? "לקוח לא ידוע",
+            reminderAt: reminder.reminderAt,
+          });
+          const result = await sendToDefaultRecipient(msg);
+          await storage.markReminderWhatsappNotified(reminder.id);
+          console.log(`[WhatsApp] Reminder ${reminder.id} → ${result.success ? "✓ sent" : "✗ " + result.error}`);
+        } catch (err: any) {
+          console.error(`[WhatsApp] Reminder ${reminder.id} error:`, err.message);
+        }
+      }
+    } catch (err: any) {
+      console.error("[WhatsApp] Scheduler error:", err.message);
+    }
+  }, 60_000);
+  // ────────────────────────────────────────────────────────────────
 })();

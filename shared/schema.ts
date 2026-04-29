@@ -195,6 +195,7 @@ export const reminders = pgTable("reminders", {
   reminderAt: timestamp("reminder_at").notNull(),
   snoozedUntil: timestamp("snoozed_until"),
   isDismissed: boolean("is_dismissed").default(false),
+  whatsappNotified: boolean("whatsapp_notified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
