@@ -1,11 +1,10 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
+import MemoryStore from "memorystore";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { pool } from "./db";
 import type { Express, Request } from "express";
 import type { User } from "@shared/schema";
 
@@ -25,13 +24,8 @@ export function setupAuth(app: Express) {
     app.set("trust proxy", 1);
   }
 
-  const PgStore = connectPgSimple(session);
-
-  const sessionStore = new PgStore({
-    pool,
-    tableName: "session",
-    createTableIfMissing: true,
-  });
+  const MStore = MemoryStore(session);
+  const sessionStore = new MStore({ checkPeriod: 86400000 });
 
   app.use(
     session({
