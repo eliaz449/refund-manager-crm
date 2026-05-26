@@ -234,6 +234,23 @@ export function formatNewLeadMessage(params: {
   ].join("\n");
 }
 
+/**
+ * Send a WhatsApp message via CallMeBot to a single registered number.
+ * Env vars: CALLMEBOT_PHONE, CALLMEBOT_APIKEY
+ */
+export async function sendCallMeBot(message: string): Promise<void> {
+  const phone  = process.env.CALLMEBOT_PHONE?.trim();
+  const apikey = process.env.CALLMEBOT_APIKEY?.trim();
+  if (!phone || !apikey) return;
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apikey}`;
+  try {
+    const res = await fetch(url);
+    console.log(`[CallMeBot] → ${res.status} for phone ${phone}`);
+  } catch (err: any) {
+    console.error(`[CallMeBot] ❌ ${err.message}`);
+  }
+}
+
 /** Format a reminder WhatsApp message */
 export function formatReminderMessage(params: {
   taskTitle: string;
