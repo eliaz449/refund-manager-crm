@@ -493,6 +493,102 @@ export async function registerRoutes(
     res.json(events);
   });
 
+  // ─── Twilio WhatsApp Inbound ─────────────────────────────────────
+  // Public — Twilio calls this when user sends a WhatsApp message to the sandbox
+  app.post("/api/twilio/whatsapp-inbound", async (req, res) => {
+    const msgBody: string = (req.body.Body ?? "").trim();
+    const from: string = req.body.From ?? "";
+    console.log(`[WhatsApp:Bot] From=${from} Body="${msgBody}"`);
+
+    const ownerPhone = process.env.WHATSAPP_OWNER_PHONE?.trim();
+    if (ownerPhone) {
+      const fromDigits = from.replace(/\D/g, "");
+      const ownerDigits = ownerPhone.replace(/\D/g, "");
+      if (!fromDigits.endsWith(ownerDigits) && !ownerDigits.endsWith(fromDigits)) {
+        console.warn(`[WhatsApp:Bot] Unauthorized sender: ${from}`);
+        return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
+      }
+    }
+
+    const reply = await handleWhatsAppCommand(msgBody);
+    res.type("text/xml").send(
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(reply)}</Message></Response>`
+    );
+  });
+
+  function escapeXml(str: string): string {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  async function handleWhatsAppCommand(body: string): Promise<string> {
+    const cmd = body.trim();
+    const cmdLower = cmd.toLowerCase();
+
+    if (cmdLower === "עזרה" || cmdLower === "help" || cmd === "?") {
+      return [
+        "📋 *פקודות זמינות:*",
+        "",
+        "• *סטטוס* — סטטיסטיקות המערכת",
+        "• *לידים* — 5 הלידים האחרונים",
+        "• *לקוחות* — לקוחות פעילים",
+        "• *חפש [שם]* — חיפוש לקוח לפי שם",
+        "• *עזרה* — תפריט זה",
+      ].join("\n");
+    }
+
+    if (cmdLower === "סטטוס" || cmdLower === "סטטיסטיקות") {
+      try {
+        const stats = await storage.getDashboardStats();
+        return [
+          "📊 *TaxPro CRM — סטטוס*",
+          `🔥 לידים: ${stats.totalLeads}`,
+          `✅ לקוחות פעילים: ${stats.activeClients}`,
+          `📁 תיקים פתוחים: ${stats.openCases}`,
+          `📋 משימות ממתינות: ${stats.pendingTasks}`,
+          `💰 הכנסות: ₪${Number(stats.totalRevenue).toLocaleString("he-IL")}`,
+        ].join("\n");
+      } catch { return "❌ שגיאה בטעינת סטטיסטיקות"; }
+    }
+
+    if (cmdLower === "לידים" || cmdLower === "רשימת לידים") {
+      try {
+        const all = await storage.getClients();
+        const leads = all
+          .filter(c => c.status === "lead")
+          .sort((a, b) => new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime())
+          .slice(0, 5);
+        if (leads.length === 0) return "📭 אין לידים פתוחים כרגע";
+        const lines = leads.map((l, i) => `${i + 1}. ${l.fullName} — ${l.phone ?? "ללא טלפון"}`);
+        return ["🔥 *5 הלידים האחרונים:*", ...lines].join("\n");
+      } catch { return "❌ שגיאה בטעינת לידים"; }
+    }
+
+    if (cmdLower === "לקוחות") {
+      try {
+        const all = await storage.getClients();
+        const active = all.filter(c => c.status === "active");
+        if (active.length === 0) return "📭 אין לקוחות פעילים";
+        const preview = active.slice(0, 5).map((c, i) => `${i + 1}. ${c.fullName}`);
+        return [`👥 *לקוחות פעילים (${active.length} סה"כ):*`, ...preview].join("\n");
+      } catch { return "❌ שגיאה בטעינת לקוחות"; }
+    }
+
+    const searchMatch = cmd.match(/^חפש\s+(.+)/i);
+    if (searchMatch) {
+      const query = searchMatch[1].trim().toLowerCase();
+      try {
+        const all = await storage.getClients();
+        const results = all.filter(c => c.fullName.toLowerCase().includes(query)).slice(0, 5);
+        if (results.length === 0) return `🔍 לא נמצאו תוצאות עבור "${searchMatch[1].trim()}"`;
+        const lines = results.map(c => `• ${c.fullName} — ${c.status} — ${c.phone ?? "ללא טלפון"}`);
+        return [`🔍 *תוצאות עבור "${searchMatch[1].trim()}":*`, ...lines].join("\n");
+      } catch { return "❌ שגיאה בחיפוש"; }
+    }
+
+    return `❓ לא הבנתי. שלח *עזרה* לרשימת הפקודות.`;
+  }
+  // ────────────────────────────────────────────────────────────────
+
   // ─── WhatsApp Test Endpoint ──────────────────────────────────────
   app.post("/api/test-whatsapp", requireAuth, async (req, res) => {
     const phone  = process.env.CALLMEBOT_PHONE?.trim();
