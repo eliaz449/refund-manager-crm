@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock,
-  Bell, BellOff, ChevronDown, ChevronUp, Calendar
+  Bell, BellOff, ChevronDown, ChevronUp, Calendar, Handshake, Loader2
 } from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -203,6 +203,80 @@ function AddReminderModal({
   );
 }
 
+interface Partner { id: string; fullName: string; email: string }
+
+function ShareWithPartnerDialog({
+  client, open, onClose,
+}: { client: Client; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const [partnerId, setPartnerId] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const { data: partners = [] } = useQuery<Partner[]>({
+    queryKey: ["/api/partners"],
+    enabled: open,
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/partner-leads/share", {
+        partnerId,
+        clientId: client.id,
+        notes: notes.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/partner-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/partner-activities"] });
+      toast({ title: "הלקוח הועבר לשותף" });
+      setPartnerId(""); setNotes("");
+      onClose();
+    },
+    onError: (err: Error) => toast({ title: "שגיאה", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent dir="rtl" className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Handshake className="w-4 h-4" />
+            העבר לשותף — {client.fullName}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); if (partnerId) shareMutation.mutate(); }} className="space-y-4">
+          <div className="space-y-2">
+            <Label>בחר שותף *</Label>
+            <Select value={partnerId} onValueChange={setPartnerId}>
+              <SelectTrigger data-testid="select-partner"><SelectValue placeholder={partners.length === 0 ? "אין שותפים זמינים" : "בחר שותף"} /></SelectTrigger>
+              <SelectContent>
+                {partners.map(p => <SelectItem key={p.id} value={p.id}>{p.fullName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>הערה לשותף (אופציונלי)</Label>
+            <Textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="למשל: לקוח מתעניין בביטוח חיים, להתקשר השבוע"
+              rows={3}
+              data-testid="input-share-notes"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={!partnerId || shareMutation.isPending} className="flex-1" data-testid="button-confirm-share">
+              {shareMutation.isPending && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+              העבר
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose}>ביטול</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ReminderIndicator({ reminder }: { reminder: Reminder | undefined }) {
   if (!reminder) return null;
   const isPast = new Date(reminder.reminderAt) <= new Date();
@@ -222,6 +296,7 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClientSource, setNewClientSource] = useState("direct");
   const [reminderClient, setReminderClient] = useState<Client | null>(null);
+  const [shareClient, setShareClient] = useState<Client | null>(null);
   const [expandedCriteria, setExpandedCriteria] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -493,6 +568,9 @@ export default function Clients() {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setReminderClient(client); }}>
                             <Bell className="w-4 h-4 ml-2" />הוסף תזכורת
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShareClient(client); }}>
+                            <Handshake className="w-4 h-4 ml-2" />העבר לשותף
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
@@ -623,6 +701,16 @@ export default function Clients() {
                               >
                                 <Bell className="w-3.5 h-3.5" />
                               </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => setShareClient(client)}
+                                title="העבר לשותף"
+                                data-testid={`button-share-partner-${client.id}`}
+                              >
+                                <Handshake className="w-3.5 h-3.5" />
+                              </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-menu-client-${client.id}`}>
@@ -632,6 +720,9 @@ export default function Clients() {
                                 <DropdownMenuContent align="start">
                                   <DropdownMenuItem onClick={() => setLocation(`/clients/${client.id}`)}>
                                     <Eye className="w-4 h-4 ml-2" />צפה
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setShareClient(client)}>
+                                    <Handshake className="w-4 h-4 ml-2" />העבר לשותף
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     className="text-destructive"
@@ -667,6 +758,14 @@ export default function Clients() {
           client={reminderClient}
           open={!!reminderClient}
           onClose={() => setReminderClient(null)}
+        />
+      )}
+
+      {shareClient && (
+        <ShareWithPartnerDialog
+          client={shareClient}
+          open={!!shareClient}
+          onClose={() => setShareClient(null)}
         />
       )}
     </div>
