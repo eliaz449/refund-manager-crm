@@ -5,12 +5,12 @@ import bcrypt from "bcryptjs";
 
 const INITIAL_PASSWORD = process.env.INITIAL_ADMIN_PASSWORD || "TaxPro2026!";
 
-async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant") {
+async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant" | "partner", initialPassword?: string) {
   const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
   if (existing.length > 0) {
     return existing[0];
   }
-  const passwordHash = await bcrypt.hash(INITIAL_PASSWORD, 12);
+  const passwordHash = await bcrypt.hash(initialPassword ?? INITIAL_PASSWORD, 12);
   const [created] = await db.insert(users).values({
     fullName,
     email: email.toLowerCase(),
@@ -33,6 +33,7 @@ export async function seedDatabase() {
 
   const adminUser = await ensureUser("Eliezer Asulin", "eliazasulin@gmail.com", "admin");
   const adminUser2 = await ensureUser("Eden Asulin", "edenabergel94@gmail.com", "admin");
+  await ensureUser("סוכן ביטוח", "partner@taxpro.local", "partner", "Partner2026!");
 
   const [existing] = await db.select({ count: count() }).from(clients);
   if (existing.count > 0) return;

@@ -2,6 +2,7 @@ import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents, reminders,
+  partnerLeads, partnerLeadActivities,
   type User, type InsertUser,
   type Client, type InsertClient,
   type Case, type InsertCase,
@@ -12,6 +13,8 @@ import {
   type ClientNote, type InsertClientNote,
   type WebhookEvent, type InsertWebhookEvent,
   type Reminder, type InsertReminder,
+  type PartnerLead, type InsertPartnerLead,
+  type PartnerLeadActivity, type InsertPartnerLeadActivity,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -86,6 +89,14 @@ export interface IStorage {
   deleteReminder(id: string): Promise<void>;
   getPendingWhatsappReminders(): Promise<Reminder[]>;
   markReminderWhatsappNotified(id: string): Promise<void>;
+
+  getPartnerLeads(partnerId?: string): Promise<PartnerLead[]>;
+  getPartnerLead(id: string): Promise<PartnerLead | undefined>;
+  createPartnerLead(lead: InsertPartnerLead): Promise<PartnerLead>;
+  updatePartnerLead(id: string, update: Partial<InsertPartnerLead>): Promise<PartnerLead | undefined>;
+  deletePartnerLead(id: string): Promise<void>;
+  getPartnerLeadActivities(partnerLeadId?: string): Promise<PartnerLeadActivity[]>;
+  createPartnerLeadActivity(activity: InsertPartnerLeadActivity): Promise<PartnerLeadActivity>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -373,6 +384,44 @@ export class DatabaseStorage implements IStorage {
       totalExpenses: parseFloat(expenseResult.total || "0"),
       pendingTasks: pendingTaskCount.count,
     };
+  }
+
+  async getPartnerLeads(partnerId?: string): Promise<PartnerLead[]> {
+    if (partnerId) {
+      return db.select().from(partnerLeads).where(eq(partnerLeads.partnerId, partnerId)).orderBy(desc(partnerLeads.createdAt));
+    }
+    return db.select().from(partnerLeads).orderBy(desc(partnerLeads.createdAt));
+  }
+
+  async getPartnerLead(id: string): Promise<PartnerLead | undefined> {
+    const [row] = await db.select().from(partnerLeads).where(eq(partnerLeads.id, id));
+    return row;
+  }
+
+  async createPartnerLead(lead: InsertPartnerLead): Promise<PartnerLead> {
+    const [created] = await db.insert(partnerLeads).values(lead).returning();
+    return created;
+  }
+
+  async updatePartnerLead(id: string, update: Partial<InsertPartnerLead>): Promise<PartnerLead | undefined> {
+    const [updated] = await db.update(partnerLeads).set({ ...update, updatedAt: new Date() }).where(eq(partnerLeads.id, id)).returning();
+    return updated;
+  }
+
+  async deletePartnerLead(id: string): Promise<void> {
+    await db.delete(partnerLeads).where(eq(partnerLeads.id, id));
+  }
+
+  async getPartnerLeadActivities(partnerLeadId?: string): Promise<PartnerLeadActivity[]> {
+    if (partnerLeadId) {
+      return db.select().from(partnerLeadActivities).where(eq(partnerLeadActivities.partnerLeadId, partnerLeadId)).orderBy(desc(partnerLeadActivities.createdAt));
+    }
+    return db.select().from(partnerLeadActivities).orderBy(desc(partnerLeadActivities.createdAt));
+  }
+
+  async createPartnerLeadActivity(activity: InsertPartnerLeadActivity): Promise<PartnerLeadActivity> {
+    const [created] = await db.insert(partnerLeadActivities).values(activity).returning();
+    return created;
   }
 }
 

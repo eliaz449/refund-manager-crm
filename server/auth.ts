@@ -227,6 +227,28 @@ export function requireAuth(req: Request, res: any, next: any) {
   next();
 }
 
+// Owner routes (admin/user/accountant) — explicitly block partners
+export function requireOwner(req: Request, res: any, next: any) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "לא מחובר" });
+  }
+  if (req.user?.role === "partner") {
+    return res.status(403).json({ message: "אין הרשאה" });
+  }
+  next();
+}
+
+// Partner-only routes
+export function requirePartner(req: Request, res: any, next: any) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "לא מחובר" });
+  }
+  if (req.user?.role !== "partner") {
+    return res.status(403).json({ message: "אין הרשאה" });
+  }
+  next();
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }

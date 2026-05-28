@@ -3,7 +3,14 @@ import { pgTable, text, varchar, integer, numeric, boolean, timestamp, date, pgE
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const userRoleEnum = pgEnum("user_role", ["admin", "user", "accountant"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "user", "accountant", "partner"]);
+export const partnerLeadStatusEnum = pgEnum("partner_lead_status", [
+  "new", "contacted", "interested", "not_interested", "in_progress", "closed_won", "closed_lost"
+]);
+export const partnerLeadSourceEnum = pgEnum("partner_lead_source", ["owner_shared", "partner_added"]);
+export const partnerActivityActionEnum = pgEnum("partner_activity_action", [
+  "lead_shared", "lead_added", "status_changed", "note_added", "lead_updated"
+]);
 export const clientTypeEnum = pgEnum("client_type", ["private_individual", "self_employed"]);
 export const clientStatusEnum = pgEnum("client_status", ["lead", "active", "inactive"]);
 export const clientProcessStatusEnum = pgEnum("client_process_status", [
@@ -228,6 +235,41 @@ export const webhookEvents = pgTable("webhook_events", {
 export const insertWebhookEventSchema = createInsertSchema(webhookEvents).omit({ id: true, receivedAt: true });
 export type InsertWebhookEvent = z.infer<typeof insertWebhookEventSchema>;
 export type WebhookEvent = typeof webhookEvents.$inferSelect;
+// ────────────────────────────────────────────────────────────────
+
+// ─── Partner Dashboard ──────────────────────────────────────────
+export const partnerLeads = pgTable("partner_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: varchar("partner_id").notNull(),
+  clientId: varchar("client_id"),
+  fullName: text("full_name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  status: partnerLeadStatusEnum("status").notNull().default("new"),
+  notes: text("notes"),
+  source: partnerLeadSourceEnum("source").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const partnerLeadActivities = pgTable("partner_lead_activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerLeadId: varchar("partner_lead_id").notNull(),
+  actorId: varchar("actor_id").notNull(),
+  actorName: text("actor_name").notNull(),
+  actorRole: text("actor_role").notNull(),
+  action: partnerActivityActionEnum("action").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPartnerLeadSchema = createInsertSchema(partnerLeads).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPartnerLead = z.infer<typeof insertPartnerLeadSchema>;
+export type PartnerLead = typeof partnerLeads.$inferSelect;
+
+export const insertPartnerLeadActivitySchema = createInsertSchema(partnerLeadActivities).omit({ id: true, createdAt: true });
+export type InsertPartnerLeadActivity = z.infer<typeof insertPartnerLeadActivitySchema>;
+export type PartnerLeadActivity = typeof partnerLeadActivities.$inferSelect;
 // ────────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });

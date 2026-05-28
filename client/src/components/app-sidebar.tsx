@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import {
-  LayoutDashboard, Users,
+  LayoutDashboard, Users, Handshake,
   ArrowLeftRight, Building2, LogOut, Settings, Webhook
 } from "lucide-react";
 import {
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 const mainItems = [
   { title: "לוח בקרה", url: "/", icon: LayoutDashboard },
   { title: "לקוחות", url: "/clients", icon: Users },
+  { title: "שותפים", url: "/partners", icon: Handshake },
   { title: "תנועות", url: "/transactions", icon: ArrowLeftRight },
   { title: "Webhooks", url: "/webhook-events", icon: Webhook },
 ];

@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { requireAuth } from "./auth";
-import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
+import { requireAuth, requireOwner, requirePartner } from "./auth";
+import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema, insertPartnerLeadSchema } from "@shared/schema";
 import { sendCallMeBot, formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
 
 const partialClientSchema = insertClientSchema.partial();
@@ -587,6 +587,132 @@ export async function registerRoutes(
 
     return `❓ לא הבנתי. שלח *עזרה* לרשימת הפקודות.`;
   }
+  // ────────────────────────────────────────────────────────────────
+
+  // ─── Partner Dashboard ───────────────────────────────────────────
+  // Owner endpoints (admin/user/accountant)
+  app.get("/api/partners", requireOwner, async (_req, res) => {
+    const allUsers = await storage.getUsers();
+    const partners = allUsers.filter(u => u.role === "partner").map(u => ({
+      id: u.id, fullName: u.fullName, email: u.email, createdAt: u.createdAt,
+    }));
+    res.json(partners);
+  });
+
+  app.get("/api/partner-leads", requireOwner, async (req, res) => {
+    const partnerId = (req.query.partnerId as string) || undefined;
+    const leads = await storage.getPartnerLeads(partnerId);
+    res.json(leads);
+  });
+
+  app.get("/api/partner-leads/:id/activities", requireOwner, async (req, res) => {
+    const activities = await storage.getPartnerLeadActivities(req.params.id);
+    res.json(activities);
+  });
+
+  app.get("/api/partner-activities", requireOwner, async (_req, res) => {
+    const activities = await storage.getPartnerLeadActivities();
+    res.json(activities.slice(0, 100));
+  });
+
+  // Owner shares an existing client OR raw lead with a partner
+  app.post("/api/partner-leads/share", requireOwner, async (req, res) => {
+    const { partnerId, clientId, fullName, phone, email, notes } = req.body ?? {};
+    if (!partnerId) return res.status(400).json({ message: "partnerId חובה" });
+
+    let leadData: any = { partnerId, source: "owner_shared", notes };
+    if (clientId) {
+      const client = await storage.getClient(clientId);
+      if (!client) return res.status(404).json({ message: "לקוח לא נמצא" });
+      leadData = { ...leadData, clientId: client.id, fullName: client.fullName, phone: client.phone, email: client.email };
+    } else {
+      if (!fullName) return res.status(400).json({ message: "fullName חובה" });
+      leadData = { ...leadData, fullName, phone, email };
+    }
+
+    const lead = await storage.createPartnerLead(leadData);
+    await storage.createPartnerLeadActivity({
+      partnerLeadId: lead.id,
+      actorId: req.user!.id,
+      actorName: req.user!.fullName,
+      actorRole: "owner",
+      action: "lead_shared",
+      details: `הליד "${lead.fullName}" שותף עם השותף`,
+    });
+    res.json(lead);
+  });
+
+  // Partner endpoints
+  app.get("/api/partner/leads", requirePartner, async (req, res) => {
+    const leads = await storage.getPartnerLeads(req.user!.id);
+    res.json(leads);
+  });
+
+  app.post("/api/partner/leads", requirePartner, async (req, res) => {
+    const { fullName, phone, email, notes } = req.body ?? {};
+    if (!fullName) return res.status(400).json({ message: "שם מלא חובה" });
+
+    const lead = await storage.createPartnerLead({
+      partnerId: req.user!.id,
+      fullName, phone, email, notes,
+      source: "partner_added",
+      status: "new",
+    });
+    await storage.createPartnerLeadActivity({
+      partnerLeadId: lead.id,
+      actorId: req.user!.id,
+      actorName: req.user!.fullName,
+      actorRole: "partner",
+      action: "lead_added",
+      details: `השותף הוסיף ליד חדש: "${lead.fullName}"`,
+    });
+    res.json(lead);
+  });
+
+  app.patch("/api/partner/leads/:id", requirePartner, async (req, res) => {
+    const existing = await storage.getPartnerLead(req.params.id);
+    if (!existing) return res.status(404).json({ message: "ליד לא נמצא" });
+    if (existing.partnerId !== req.user!.id) return res.status(403).json({ message: "אין הרשאה" });
+
+    const { status, notes, phone, email, fullName } = req.body ?? {};
+    const update: any = {};
+    if (status !== undefined) update.status = status;
+    if (notes !== undefined) update.notes = notes;
+    if (phone !== undefined) update.phone = phone;
+    if (email !== undefined) update.email = email;
+    if (fullName !== undefined) update.fullName = fullName;
+
+    const updated = await storage.updatePartnerLead(req.params.id, update);
+
+    if (status !== undefined && status !== existing.status) {
+      await storage.createPartnerLeadActivity({
+        partnerLeadId: existing.id,
+        actorId: req.user!.id,
+        actorName: req.user!.fullName,
+        actorRole: "partner",
+        action: "status_changed",
+        details: `סטטוס עודכן: ${existing.status} → ${status}`,
+      });
+    }
+    if (notes !== undefined && notes !== existing.notes) {
+      await storage.createPartnerLeadActivity({
+        partnerLeadId: existing.id,
+        actorId: req.user!.id,
+        actorName: req.user!.fullName,
+        actorRole: "partner",
+        action: "note_added",
+        details: notes ? `הערה עודכנה: "${(notes as string).slice(0, 200)}"` : "הערה נמחקה",
+      });
+    }
+    res.json(updated);
+  });
+
+  app.get("/api/partner/leads/:id/activities", requirePartner, async (req, res) => {
+    const lead = await storage.getPartnerLead(req.params.id);
+    if (!lead || lead.partnerId !== req.user!.id) return res.status(404).json({ message: "ליד לא נמצא" });
+    const activities = await storage.getPartnerLeadActivities(req.params.id);
+    res.json(activities);
+  });
   // ────────────────────────────────────────────────────────────────
 
   // ─── WhatsApp Test Endpoint ──────────────────────────────────────

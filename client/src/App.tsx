@@ -14,6 +14,8 @@ import Transactions from "@/pages/transactions";
 import Settings from "@/pages/settings";
 import WebhookEvents from "@/pages/webhook-events";
 import LoginPage from "@/pages/login";
+import PartnerDashboard from "@/pages/partner-dashboard";
+import PartnersPage from "@/pages/partners";
 import { Loader2 } from "lucide-react";
 import { ReminderNotifications } from "@/hooks/use-reminder-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -28,6 +30,7 @@ function Router() {
       <Route path="/tasks"><Redirect to="/clients" /></Route>
       <Route path="/payments"><Redirect to="/clients" /></Route>
       <Route path="/transactions" component={Transactions} />
+      <Route path="/partners" component={PartnersPage} />
       <Route path="/settings" component={Settings} />
       <Route path="/webhook-events" component={WebhookEvents} />
       <Route component={NotFound} />
@@ -53,6 +56,15 @@ function AuthenticatedApp() {
 
   if (!isAuthenticated) {
     return <LoginPage />;
+  }
+
+  // Partners get a stripped-down view — only the partner dashboard, no sidebar
+  if (user?.role === "partner") {
+    return (
+      <ErrorBoundary name="partner-app">
+        <PartnerDashboard />
+      </ErrorBoundary>
+    );
   }
 
   return (
