@@ -92,12 +92,14 @@ export function formatNewLeadMessage(params: {
   };
   const sourceName = sourceMap[params.source] ?? params.source;
   return [
-    "🔥 ליד חדש נכנס למערכת",
-    "",
-    `👤 שם: ${params.name}`,
-    `📞 טלפון: ${params.phone}`,
-    `📌 מקור: ${sourceName}`,
-    `📅 תאריך: ${date}`,
+    "🔥 *ליד חדש נכנס למערכת!*",
+    "──────────────────",
+    `👤 *שם:* ${params.name}`,
+    `📞 *טלפון:* ${params.phone}`,
+    `📌 *מקור:* ${sourceName}`,
+    `🕐 *זמן:* ${date}`,
+    "──────────────────",
+    "💼 _TaxPro CRM_",
   ].join("\n");
 }
 
