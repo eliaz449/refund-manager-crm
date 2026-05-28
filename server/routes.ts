@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema } from "@shared/schema";
-import { sendToAllRecipients, getRecipientPhones, formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
+import { sendCallMeBot, formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
 
 const partialClientSchema = insertClientSchema.partial();
 const partialCaseSchema = insertCaseSchema.partial();
@@ -56,17 +56,13 @@ export async function registerRoutes(
         console.log(`[WhatsApp:Lead] ⚠️  Skipping duplicate — id=${client.id} already notified`);
       } else {
         markLeadNotified(client.id);
-        const recipients = getRecipientPhones();
-        console.log(`[WhatsApp:Lead] Recipients (${recipients.length}): ${recipients.join(", ")}`);
         const msg = formatNewLeadMessage({
           name: client.fullName,
           phone: client.phone ?? "",
           source: client.source ?? "other",
           createdAt: client.createdAt ?? new Date(),
         });
-        sendToAllRecipients(msg).then(result => {
-          console.log(`[WhatsApp:Lead] ✅ Done — sent=${result.sent}, failed=${result.failed}`);
-        }).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
+        sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
       }
     } else {
       console.log(`[WhatsApp:Lead] Status='${client.status}' — no WA (only sent for 'lead')`);
@@ -473,17 +469,13 @@ export async function registerRoutes(
         console.log(`[WhatsApp:Landy] ⚠️  Skipping duplicate — id=${newClient.id} already notified`);
       } else {
         markLeadNotified(newClient.id);
-        const recipients = getRecipientPhones();
-        console.log(`[WhatsApp:Landy] Recipients (${recipients.length}): ${recipients.join(", ")}`);
         const msg = formatNewLeadMessage({
           name: newClient.fullName,
           phone: newClient.phone ?? phone,
           source: "landy",
           createdAt: newClient.createdAt ?? new Date(),
         });
-        sendToAllRecipients(msg).then(r => {
-          console.log(`[WhatsApp:Landy] ✅ Done — sent=${r.sent}, failed=${r.failed}`);
-        }).catch(err => console.error("[WhatsApp:Landy] ❌ Error:", err));
+        sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Landy] ❌ Error:", err));
       }
       return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
 
@@ -503,28 +495,22 @@ export async function registerRoutes(
 
   // ─── WhatsApp Test Endpoint ──────────────────────────────────────
   app.post("/api/test-whatsapp", requireAuth, async (req, res) => {
-    const phones = getRecipientPhones();
-    if (phones.length === 0) {
-      return res.status(400).json({ success: false, error: "No recipients configured. Set WHATSAPP_RECIPIENT_PHONES env var." });
+    const phone  = process.env.CALLMEBOT_PHONE?.trim();
+    const apikey = process.env.CALLMEBOT_APIKEY?.trim();
+    if (!phone || !apikey) {
+      return res.status(400).json({ success: false, error: "CALLMEBOT_PHONE or CALLMEBOT_APIKEY not configured." });
     }
     const message = [
       "✅ בדיקת חיבור WhatsApp — TaxPro CRM",
       `זמן: ${new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
       "המערכת מחוברת ועובדת!",
     ].join("\n");
-    const result = await sendToAllRecipients(message);
-    console.log(`[WhatsApp] Test broadcast: ${result.sent} sent, ${result.failed} failed`);
-    const errorDetails = result.results
-      .filter(r => !r.result.success)
-      .map(r => `${r.phone}: ${r.result.error ?? "unknown"}`)
-      .join("; ");
-    res.json({
-      success: result.sent > 0,
-      sent: result.sent,
-      failed: result.failed,
-      recipients: phones.length,
-      ...(errorDetails ? { error: errorDetails } : {}),
-    });
+    try {
+      await sendCallMeBot(message);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.json({ success: false, error: err.message });
+    }
   });
   // ────────────────────────────────────────────────────────────────
 
