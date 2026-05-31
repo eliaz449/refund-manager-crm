@@ -81,8 +81,8 @@ export default function WebhookEventsPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">לוג Webhooks — Landy</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">כל בקשת Webhook מלנדי מתועדת כאן, כולל כשלים</p>
+            <h1 className="text-xl sm:text-2xl font-bold">לוג Webhooks — לידים</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">כל בקשת Webhook מדפי הנחיתה מתועדת כאן, כולל כשלים</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} data-testid="button-refresh-webhooks">
             <RefreshCw className={`w-4 h-4 ml-1 ${isFetching ? "animate-spin" : ""}`} />
@@ -127,9 +127,9 @@ export default function WebhookEventsPage() {
                 <div>
                   <div className="font-semibold text-red-700 dark:text-red-400">יש {authFailed} בקשות שנכשלו באימות</div>
                   <div className="text-sm text-red-600 dark:text-red-500 mt-1">
-                    הסוד שלנדי שולח ב-<code>x-landy-signature</code> לא תואם את <code>LANDY_WEBHOOK_SECRET</code> שמוגדר ב-Replit.
+                    הסוד שהדף שולח ב-<code>x-lead-signature</code> לא תואם את <code>LEAD_WEBHOOK_SECRET</code> שמוגדר ב-Railway.
                     <br />
-                    <strong>פתרון:</strong> כנס להגדרות ה-Webhook בלנדי, העתק את ערך הסוד, ועדכן את <code>LANDY_WEBHOOK_SECRET</code> ב-Replit Secrets.
+                    <strong>פתרון:</strong> ודא ש-<code>CRM_WEBHOOK_SECRET</code> בדף הנחיתה זהה ל-<code>LEAD_WEBHOOK_SECRET</code> ב-Railway Variables.
                   </div>
                 </div>
               </div>
@@ -149,7 +149,7 @@ export default function WebhookEventsPage() {
               <div className="p-8 text-center text-muted-foreground">
                 <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
                 <div>אין בקשות עדיין</div>
-                <div className="text-xs mt-1">כאשר לנדי ישלח Webhook הוא יופיע כאן</div>
+                <div className="text-xs mt-1">כאשר דף נחיתה ישלח Webhook הוא יופיע כאן</div>
               </div>
             ) : (
               <>
@@ -264,13 +264,13 @@ export default function WebhookEventsPage() {
           </CardHeader>
           <CardContent>
             <pre className="text-xs bg-muted p-3 rounded overflow-x-auto whitespace-pre-wrap break-all">
-{`curl -X POST https://taxprocrm.replit.app/api/webhooks/landy \\
+{`curl -X POST https://refund-manager-crm-production.up.railway.app/api/webhooks/lead \\
   -H "Content-Type: application/json" \\
-  -H "x-landy-signature: YOUR_SECRET_HERE" \\
-  -d '{"event_type":"new_lead","page_name":"בדיקה","submitted_at":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","form_data":{"name":"ישראל ישראלי","phone":"0501234567"}}'`}
+  -H "x-lead-signature: YOUR_SIGNATURE_HERE" \\
+  -d '{"full_name":"ישראל ישראלי","phone":"0501234567","page_name":"בדיקה","source":"website"}'`}
             </pre>
             <p className="text-xs text-muted-foreground mt-2">
-              החלף <code>YOUR_SECRET_HERE</code> בערך ה-<code>LANDY_WEBHOOK_SECRET</code> המוגדר ב-Replit Secrets.
+              <code>YOUR_SIGNATURE_HERE</code> הוא <code>HMAC-SHA256(LEAD_WEBHOOK_SECRET, body)</code> בפורמט hex.
             </p>
           </CardContent>
         </Card>

@@ -313,11 +313,11 @@ export async function registerRoutes(
   });
   // ────────────────────────────────────────────────────────────────
 
-  // ─── Landy Webhook ─────────────────────────────────────────────
+  // ─── Lead Webhook (generic, accepts leads from any landing page) ─────────
   const VALID_SOURCES = ["referral", "website", "social_media", "direct", "other"] as const;
   const maskVal = (s: string | undefined) => s ? `"${s.substring(0, 6)}..." (len=${s.length})` : "(not set)";
 
-  app.post("/api/webhooks/landy", async (req, res) => {
+  const leadWebhookHandler = async (req: any, res: any) => {
     const receivedAt = new Date().toISOString();
     // Use the original raw bytes that arrived — critical for HMAC verification
     const rawBodyBuffer: Buffer = Buffer.isBuffer((req as any).rawBody)
@@ -328,47 +328,48 @@ export async function registerRoutes(
     const safeHeaders = Object.fromEntries(
       Object.entries(req.headers).filter(([k]) => !["cookie"].includes(k))
     );
-    const receivedSignature = typeof req.headers["x-landy-signature"] === "string"
-      ? req.headers["x-landy-signature"].trim()
-      : undefined;
+    const sigHeader = req.headers["x-lead-signature"] ?? req.headers["x-landy-signature"];
+    const receivedSignature = typeof sigHeader === "string" ? sigHeader.trim() : undefined;
 
-    // ── STEP 1: Log receipt & save audit record immediately (nothing is lost after this point) ──
-    console.log(`[Landy] ── STEP 1: Request received at ${receivedAt}`);
-    console.log(`[Landy]    Content-Type: ${req.headers["content-type"]}`);
-    console.log(`[Landy]    Body keys: ${JSON.stringify(Object.keys(req.body || {}))}`);
-    console.log(`[Landy]    Raw body: ${rawBodyStr.substring(0, 600)}`);
+    // ── STEP 1: Log receipt & save audit record immediately ──
+    console.log(`[Lead] ── STEP 1: Request received at ${receivedAt}`);
+    console.log(`[Lead]    Path: ${req.path}`);
+    console.log(`[Lead]    Content-Type: ${req.headers["content-type"]}`);
+    console.log(`[Lead]    Body keys: ${JSON.stringify(Object.keys(req.body || {}))}`);
+    console.log(`[Lead]    Raw body: ${rawBodyStr.substring(0, 600)}`);
 
     let auditId: string | undefined;
     try {
       const audit = await storage.createWebhookEvent({
-        source: "landy",
+        source: "lead",
         rawHeaders: JSON.stringify(safeHeaders),
         rawBody: rawBodyStr,
         receivedSignature,
         processingStatus: "received",
       });
       auditId = audit.id;
-      console.log(`[Landy]    Audit record created: ${auditId}`);
+      console.log(`[Lead]    Audit record created: ${auditId}`);
     } catch (auditErr: any) {
-      console.error(`[Landy]    WARNING: Could not create audit record: ${auditErr.message}`);
+      console.error(`[Lead]    WARNING: Could not create audit record: ${auditErr.message}`);
     }
 
     // ── STEP 2: Authentication (HMAC-SHA256) ──
-    // Landy computes: HMAC-SHA256(secret, rawBody) → hex
-    const expectedSecret = process.env.LANDY_WEBHOOK_SECRET?.trim();
-    console.log(`[Landy] ── STEP 2: Auth check (HMAC-SHA256)`);
-    console.log(`[Landy]    Received signature: ${maskVal(receivedSignature)}`);
+    // Sender computes: HMAC-SHA256(secret, rawBody) → hex
+    // Accept LEAD_WEBHOOK_SECRET (preferred) or LANDY_WEBHOOK_SECRET (legacy) for safe cutover.
+    const expectedSecret = (process.env.LEAD_WEBHOOK_SECRET ?? process.env.LANDY_WEBHOOK_SECRET)?.trim();
+    console.log(`[Lead] ── STEP 2: Auth check (HMAC-SHA256)`);
+    console.log(`[Lead]    Received signature: ${maskVal(receivedSignature)}`);
 
     if (!expectedSecret) {
-      const reason = "LANDY_WEBHOOK_SECRET not configured in env";
-      console.warn(`[Landy]    Auth FAILED: ${reason}`);
+      const reason = "LEAD_WEBHOOK_SECRET not configured in env";
+      console.warn(`[Lead]    Auth FAILED: ${reason}`);
       if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "no_secret", processingStatus: "auth_failed", errorMessage: reason });
       return res.status(401).json({ success: false, error: "Unauthorized", reason });
     }
 
     if (!receivedSignature) {
-      const reason = "x-landy-signature header missing from request";
-      console.warn(`[Landy]    Auth FAILED: ${reason}`);
+      const reason = "x-lead-signature (or x-landy-signature) header missing from request";
+      console.warn(`[Lead]    Auth FAILED: ${reason}`);
       if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "failed", processingStatus: "auth_failed", errorMessage: reason });
       return res.status(401).json({ success: false, error: "Unauthorized", reason });
     }
@@ -378,7 +379,7 @@ export async function registerRoutes(
       .update(rawBodyBuffer)
       .digest("hex");
 
-    console.log(`[Landy]    Computed HMAC   : ${maskVal(expectedHmac)}`);
+    console.log(`[Lead]    Computed HMAC   : ${maskVal(expectedHmac)}`);
 
     const recvBuf = Buffer.from(receivedSignature, "utf8");
     const expBuf  = Buffer.from(expectedHmac, "utf8");
@@ -387,16 +388,16 @@ export async function registerRoutes(
 
     if (!signaturesMatch) {
       const reason = `HMAC mismatch — received ${maskVal(receivedSignature)}, computed ${maskVal(expectedHmac)}`;
-      console.warn(`[Landy]    Auth FAILED: ${reason}`);
+      console.warn(`[Lead]    Auth FAILED: ${reason}`);
       if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "failed", processingStatus: "auth_failed", errorMessage: reason });
       return res.status(401).json({ success: false, error: "Unauthorized", reason });
     }
 
-    console.log(`[Landy]    Auth PASSED`);
+    console.log(`[Lead]    Auth PASSED`);
     if (auditId) await storage.updateWebhookEvent(auditId, { authStatus: "ok" });
 
     // ── STEP 3: Payload mapping ──
-    console.log(`[Landy] ── STEP 3: Payload mapping`);
+    console.log(`[Lead] ── STEP 3: Payload mapping`);
     const body = req.body || {};
     const fd = body.form_data || body.formData || body.data || {};
 
@@ -404,27 +405,27 @@ export async function registerRoutes(
     const phone      = body.phone      || body.telephone  || body.tel       || fd.phone      || fd.telephone  || fd.tel       || "";
     const email      = body.email      || body.mail       || fd.email       || fd.mail       || "";
     const page_name  = body.page_name  || body.pageName   || fd.page_name   || fd.pageName   || "";
-    const rawSource  = body.source     || body.utm_source || fd.source      || "landy";
+    const rawSource  = body.source     || body.utm_source || fd.source      || "website";
     const notes      = body.notes      || body.message    || body.comment   || fd.notes      || fd.message    || fd.comment   || (page_name ? `דף נחיתה: ${page_name}` : "");
     const address    = body.address    || fd.address      || "";
     const tax_id     = body.tax_id     || body.taxId      || fd.tax_id      || fd.taxId      || "";
 
     const normalized = { full_name, phone, email, source: rawSource, page_name, notes, address, tax_id };
-    console.log(`[Landy]    Mapped payload: ${JSON.stringify(normalized)}`);
+    console.log(`[Lead]    Mapped payload: ${JSON.stringify(normalized)}`);
     if (auditId) await storage.updateWebhookEvent(auditId, { normalizedPayload: JSON.stringify(normalized) });
 
     // ── STEP 4: Validation ──
-    console.log(`[Landy] ── STEP 4: Validation`);
+    console.log(`[Lead] ── STEP 4: Validation`);
     if (!full_name || !phone) {
       const missing = [...(!full_name ? ["full_name"] : []), ...(!phone ? ["phone"] : [])];
       const msg = `Missing required fields: ${missing.join(", ")}`;
-      console.warn(`[Landy]    Validation FAILED — ${msg}`);
+      console.warn(`[Lead]    Validation FAILED — ${msg}`);
       if (auditId) await storage.updateWebhookEvent(auditId, { processingStatus: "validation_failed", errorMessage: msg });
       return res.status(400).json({ success: false, error: msg, missing });
     }
-    console.log(`[Landy]    Validation PASSED — name="${full_name}", phone="${phone}"`);
+    console.log(`[Lead]    Validation PASSED — name="${full_name}", phone="${phone}"`);
 
-    const source: string = VALID_SOURCES.includes(rawSource as any) ? rawSource : "other";
+    const source: string = VALID_SOURCES.includes(rawSource as any) ? rawSource : "website";
     const clientData = {
       fullName: full_name,
       phone,
@@ -438,15 +439,15 @@ export async function registerRoutes(
     };
 
     // ── STEP 5: Database write ──
-    console.log(`[Landy] ── STEP 5: Database write`);
+    console.log(`[Lead] ── STEP 5: Database write`);
     try {
       const existing = await storage.findClientByPhoneOrEmail(phone, email || "");
 
       if (existing) {
-        console.log(`[Landy]    Existing client found: ${existing.id} (${existing.fullName}) — updating`);
+        console.log(`[Lead]    Existing client found: ${existing.id} (${existing.fullName}) — updating`);
         const { status, clientProcessStatus, ...updateData } = clientData;
         await storage.updateClient(existing.id, updateData);
-        console.log(`[Landy]    SUCCESS — Updated client ${existing.id}`);
+        console.log(`[Lead]    SUCCESS — Updated client ${existing.id}`);
         if (auditId) await storage.updateWebhookEvent(auditId, {
           processingStatus: "updated",
           createdClientId: existing.id,
@@ -455,37 +456,42 @@ export async function registerRoutes(
         return res.status(200).json({ success: true, action: "updated", clientId: existing.id, receivedAt });
       }
 
-      console.log(`[Landy]    No existing client — creating new lead`);
+      console.log(`[Lead]    No existing client — creating new lead`);
       const newClient = await storage.createClient(clientData);
-      console.log(`[Landy]    SUCCESS — Created lead ${newClient.id} (${newClient.fullName})`);
+      console.log(`[Lead]    SUCCESS — Created lead ${newClient.id} (${newClient.fullName})`);
       if (auditId) await storage.updateWebhookEvent(auditId, {
         processingStatus: "created",
         createdClientId: newClient.id,
         action: "created",
       });
-      // WhatsApp notification for new Landy lead (fire-and-forget, deduped)
-      console.log(`[WhatsApp:Landy] Lead id=${newClient.id}, name=${newClient.fullName}`);
+      // WhatsApp notification for new lead (fire-and-forget, deduped)
+      console.log(`[WhatsApp:Lead] Lead id=${newClient.id}, name=${newClient.fullName}`);
       if (isLeadAlreadyNotified(newClient.id)) {
-        console.log(`[WhatsApp:Landy] ⚠️  Skipping duplicate — id=${newClient.id} already notified`);
+        console.log(`[WhatsApp:Lead] ⚠️  Skipping duplicate — id=${newClient.id} already notified`);
       } else {
         markLeadNotified(newClient.id);
         const msg = formatNewLeadMessage({
           name: newClient.fullName,
           phone: newClient.phone ?? phone,
-          source: "landy",
+          source: source,
           createdAt: newClient.createdAt ?? new Date(),
         });
-        sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Landy] ❌ Error:", err));
+        sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
       }
       return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
 
     } catch (err: any) {
       const errMsg = `DB error: ${err.message}`;
-      console.error(`[Landy]    DATABASE ERROR: ${err.message}`);
+      console.error(`[Lead]    DATABASE ERROR: ${err.message}`);
       if (auditId) await storage.updateWebhookEvent(auditId, { processingStatus: "db_error", errorMessage: errMsg });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
-  });
+  };
+
+  // Primary endpoint for new landing pages
+  app.post("/api/webhooks/lead", leadWebhookHandler);
+  // Legacy alias — kept so existing senders (old Landy integration) keep working
+  app.post("/api/webhooks/landy", leadWebhookHandler);
 
   // ─── Webhook Events (audit log viewer) ─────────────────────────
   app.get("/api/webhook-events", requireAuth, async (_req, res) => {
