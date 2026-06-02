@@ -16,6 +16,7 @@ import {
   Search, Inbox, Activity, CheckCircle2, Lightbulb, Send, UserPlus, MessageCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentsSection } from "@/components/DocumentsSection";
 
 type Status = "new" | "contacted" | "interested" | "not_interested" | "in_progress" | "closed_won" | "closed_lost";
 
@@ -433,6 +434,15 @@ function LeadDetailDialog({
             <Label>הערות</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} />
           </div>
+
+          {lead.clientId && (
+            <DocumentsSection
+              clientId={lead.clientId}
+              readOnly
+              listEndpoint={`/api/partner/leads/${lead.id}/documents`}
+              downloadEndpointPrefix="/api/partner/documents"
+            />
+          )}
 
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onClose}>סגור</Button>

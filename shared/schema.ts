@@ -55,6 +55,10 @@ export const paymentMethodEnum = pgEnum("payment_method", ["credit_card", "bank_
 export const paymentStatusEnum = pgEnum("payment_status", ["paid", "pending", "cancelled"]);
 export const communicationTypeEnum = pgEnum("communication_type", ["phone", "email", "whatsapp"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
+export const documentCategoryEnum = pgEnum("document_category", [
+  "id_card", "form_1301", "form_135", "tax_authority_letter",
+  "bank_statement", "salary_slip", "tax_certificate", "other"
+]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -72,6 +76,10 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   email: text("email"),
   taxId: text("tax_id"),
+  dateOfBirth: date("date_of_birth"),
+  idIssueDate: date("id_issue_date"),
+  idDocumentNumber: text("id_document_number"),
+  refundPaidToClient: numeric("refund_paid_to_client"),
   address: text("address"),
   status: clientStatusEnum("status").notNull().default("lead"),
   clientProcessStatus: clientProcessStatusEnum("client_process_status").default("lead"),
@@ -262,6 +270,25 @@ export const partnerLeadActivities = pgTable("partner_lead_activities", {
   details: text("details"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ─── Documents ──────────────────────────────────────────────────
+export const documents = pgTable("documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  fileName: text("file_name").notNull(),
+  storagePath: text("storage_path").notNull(),
+  mimeType: text("mime_type"),
+  sizeBytes: integer("size_bytes"),
+  category: documentCategoryEnum("category").default("other"),
+  uploadedBy: varchar("uploaded_by"),
+  uploadedByName: text("uploaded_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true });
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type Document = typeof documents.$inferSelect;
+// ────────────────────────────────────────────────────────────────
 
 export const insertPartnerLeadSchema = createInsertSchema(partnerLeads).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertPartnerLead = z.infer<typeof insertPartnerLeadSchema>;

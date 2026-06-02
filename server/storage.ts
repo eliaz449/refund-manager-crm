@@ -2,8 +2,9 @@ import { eq, desc, sql, and, or, count } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents, reminders,
-  partnerLeads, partnerLeadActivities,
+  partnerLeads, partnerLeadActivities, documents,
   type User, type InsertUser,
+  type Document, type InsertDocument,
   type Client, type InsertClient,
   type Case, type InsertCase,
   type Task, type InsertTask,
@@ -97,6 +98,11 @@ export interface IStorage {
   deletePartnerLead(id: string): Promise<void>;
   getPartnerLeadActivities(partnerLeadId?: string): Promise<PartnerLeadActivity[]>;
   createPartnerLeadActivity(activity: InsertPartnerLeadActivity): Promise<PartnerLeadActivity>;
+
+  getDocumentsByClient(clientId: string): Promise<Document[]>;
+  getDocument(id: string): Promise<Document | undefined>;
+  createDocument(doc: InsertDocument): Promise<Document>;
+  deleteDocument(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -422,6 +428,24 @@ export class DatabaseStorage implements IStorage {
   async createPartnerLeadActivity(activity: InsertPartnerLeadActivity): Promise<PartnerLeadActivity> {
     const [created] = await db.insert(partnerLeadActivities).values(activity).returning();
     return created;
+  }
+
+  async getDocumentsByClient(clientId: string): Promise<Document[]> {
+    return db.select().from(documents).where(eq(documents.clientId, clientId)).orderBy(desc(documents.createdAt));
+  }
+
+  async getDocument(id: string): Promise<Document | undefined> {
+    const [row] = await db.select().from(documents).where(eq(documents.id, id));
+    return row;
+  }
+
+  async createDocument(doc: InsertDocument): Promise<Document> {
+    const [created] = await db.insert(documents).values(doc).returning();
+    return created;
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
   }
 }
 

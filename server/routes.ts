@@ -6,6 +6,13 @@ import { storage } from "./storage";
 import { requireAuth, requireOwner, requirePartner } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema, insertPartnerLeadSchema } from "@shared/schema";
 import { sendCallMeBot, formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
+import multer from "multer";
+import { uploadDocument, createSignedUrl, deleteDocument as deleteFromStorage, isStorageConfigured } from "./supabaseStorage";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+});
 
 const partialClientSchema = insertClientSchema.partial();
 const partialCaseSchema = insertCaseSchema.partial();
@@ -718,6 +725,97 @@ export async function registerRoutes(
     if (!lead || lead.partnerId !== req.user!.id) return res.status(404).json({ message: "ליד לא נמצא" });
     const activities = await storage.getPartnerLeadActivities(req.params.id);
     res.json(activities);
+  });
+
+  // Partner can view documents on a lead that's been shared with them (read-only)
+  app.get("/api/partner/leads/:id/documents", requirePartner, async (req, res) => {
+    const lead = await storage.getPartnerLead(req.params.id);
+    if (!lead || lead.partnerId !== req.user!.id) return res.status(404).json({ message: "ליד לא נמצא" });
+    if (!lead.clientId) return res.json([]);
+    const docs = await storage.getDocumentsByClient(lead.clientId);
+    res.json(docs);
+  });
+
+  app.get("/api/partner/documents/:id/download", requirePartner, async (req, res) => {
+    if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון מסמכים לא מוגדר" });
+    const doc = await storage.getDocument(req.params.id);
+    if (!doc) return res.status(404).json({ message: "מסמך לא נמצא" });
+    // verify the partner has access to this client via a partner_lead
+    const leads = await storage.getPartnerLeads(req.user!.id);
+    const allowed = leads.some(l => l.clientId === doc.clientId);
+    if (!allowed) return res.status(403).json({ message: "אין הרשאה" });
+    try {
+      const signedUrl = await createSignedUrl(doc.storagePath, 60);
+      res.json({ url: signedUrl, fileName: doc.fileName });
+    } catch (err: any) {
+      res.status(500).json({ message: `שגיאה ביצירת קישור: ${err.message}` });
+    }
+  });
+  // ────────────────────────────────────────────────────────────────
+
+  // ─── Documents (admin) ──────────────────────────────────────────
+  app.get("/api/clients/:clientId/documents", requireAuth, async (req, res) => {
+    const docs = await storage.getDocumentsByClient(req.params.clientId);
+    res.json(docs);
+  });
+
+  app.post("/api/clients/:clientId/documents", requireAuth, upload.single("file"), async (req, res) => {
+    if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון מסמכים לא מוגדר (SUPABASE_URL/SERVICE_ROLE_KEY חסרים)" });
+    const file = (req as any).file;
+    if (!file) return res.status(400).json({ message: "לא נשלח קובץ" });
+
+    const client = await storage.getClient(req.params.clientId);
+    if (!client) return res.status(404).json({ message: "לקוח לא נמצא" });
+
+    const category = (req.body?.category as string) || "other";
+
+    try {
+      const storagePath = await uploadDocument({
+        clientId: req.params.clientId,
+        fileName: file.originalname,
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+      });
+      const doc = await storage.createDocument({
+        clientId: req.params.clientId,
+        fileName: file.originalname,
+        storagePath,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        category: category as any,
+        uploadedBy: req.user!.id,
+        uploadedByName: req.user!.fullName,
+      });
+      res.json(doc);
+    } catch (err: any) {
+      res.status(500).json({ message: `שגיאה בהעלאה: ${err.message}` });
+    }
+  });
+
+  app.get("/api/documents/:id/download", requireAuth, async (req, res) => {
+    if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון מסמכים לא מוגדר" });
+    const doc = await storage.getDocument(req.params.id);
+    if (!doc) return res.status(404).json({ message: "מסמך לא נמצא" });
+    try {
+      const signedUrl = await createSignedUrl(doc.storagePath, 60);
+      res.json({ url: signedUrl, fileName: doc.fileName });
+    } catch (err: any) {
+      res.status(500).json({ message: `שגיאה ביצירת קישור: ${err.message}` });
+    }
+  });
+
+  app.delete("/api/documents/:id", requireAuth, async (req, res) => {
+    const doc = await storage.getDocument(req.params.id);
+    if (!doc) return res.status(404).json({ message: "מסמך לא נמצא" });
+    try {
+      if (isStorageConfigured()) {
+        await deleteFromStorage(doc.storagePath).catch(() => {});
+      }
+      await storage.deleteDocument(req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: `שגיאה במחיקה: ${err.message}` });
+    }
   });
   // ────────────────────────────────────────────────────────────────
 

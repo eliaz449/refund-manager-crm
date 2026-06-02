@@ -70,6 +70,8 @@ app.use((req, res, next) => {
     res.json({ status: "ok" });
   });
 
+  const { runMigrations } = await import("./migrations");
+  await runMigrations().catch(err => console.error("Migrations error:", err));
   const { seedDatabase } = await import("./seed");
   await seedDatabase().catch(err => console.error("Seed error:", err));
   await registerRoutes(httpServer, app);

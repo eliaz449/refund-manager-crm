@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/status-badge";
+import { DocumentsSection } from "@/components/DocumentsSection";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -460,6 +461,44 @@ export default function ClientDetail() {
               />
             </div>
             <div className="space-y-2">
+              <Label>תאריך לידה</Label>
+              <Input
+                type="date"
+                value={editData.dateOfBirth || ""}
+                onChange={(e) => setEditData({ ...editData, dateOfBirth: e.target.value })}
+                data-testid="input-edit-date-of-birth"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>תאריך הנפקת ת.ז.</Label>
+              <Input
+                type="date"
+                value={editData.idIssueDate || ""}
+                onChange={(e) => setEditData({ ...editData, idIssueDate: e.target.value })}
+                data-testid="input-edit-id-issue-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>מספר תעודה (מאחור)</Label>
+              <Input
+                value={editData.idDocumentNumber || ""}
+                onChange={(e) => setEditData({ ...editData, idDocumentNumber: e.target.value })}
+                placeholder="9 ספרות מאחורי הת.ז."
+                data-testid="input-edit-id-document-number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>סכום שהוצאנו ללקוח/ה (₪)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editData.refundPaidToClient || ""}
+                onChange={(e) => setEditData({ ...editData, refundPaidToClient: e.target.value })}
+                placeholder="סכום ההחזר שהועבר ללקוח/ה"
+                data-testid="input-edit-refund-paid"
+              />
+            </div>
+            <div className="space-y-2">
               <Label>סטטוס</Label>
               <Select value={editData.status || ""} onValueChange={(v) => setEditData({ ...editData, status: v as any })}>
                 <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
@@ -851,6 +890,8 @@ export default function ClientDetail() {
           )}
         </CardContent>
       </Card>
+
+      <DocumentsSection clientId={client.id} />
 
       {/* Create Case Dialog */}
       <Dialog open={caseDialogOpen} onOpenChange={setCaseDialogOpen}>
