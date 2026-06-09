@@ -1,6 +1,6 @@
 import { useLocation, Link } from "wouter";
 import {
-  LayoutDashboard, Users, Handshake, CalendarClock,
+  LayoutDashboard, Users, Handshake, CalendarClock, CircleSlash,
   ArrowLeftRight, Building2, LogOut, Settings, Webhook
 } from "lucide-react";
 import {
@@ -22,6 +22,7 @@ const mainItems = [
   { title: "לוח בקרה", url: "/", icon: LayoutDashboard },
   { title: "לקוחות", url: "/clients", icon: Users },
   { title: "לידים לשנה הבאה", url: "/next-year-leads", icon: CalendarClock },
+  { title: "לידים לא רלוונטיים", url: "/not-relevant-leads", icon: CircleSlash },
   { title: "שותפים", url: "/partners", icon: Handshake },
   { title: "תנועות", url: "/transactions", icon: ArrowLeftRight },
   { title: "Webhooks", url: "/webhook-events", icon: Webhook },

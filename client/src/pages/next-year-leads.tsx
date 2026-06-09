@@ -114,7 +114,7 @@ export default function NextYearLeads() {
         <Skeleton className="h-40" />
       ) : eligibleClients.length === 0 ? (
         <EmptyState
-          icon={<CalendarClock className="w-10 h-10" />}
+          icon={CalendarClock}
           title="אין עדיין לקוחות לשנה הבאה"
           description='לקוחות יופיעו כאן אוטומטית ברגע שתמלאי "תאריך תקבול" בפרטי הלקוח/ה'
         />

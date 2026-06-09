@@ -25,7 +25,8 @@ export const sourceEnum = pgEnum("source", ["referral", "website", "social_media
 export const pricingTypeEnum = pgEnum("pricing_type", ["percentage", "fixed", "hourly"]);
 export const contactStatusEnum = pgEnum("contact_status", [
   "new", "no_answer_1", "no_answer_2", "no_answer_3", "no_answer_4", "no_answer_5", "no_answer_6",
-  "talked", "sent_documents", "in_process", "closed", "not_relevant"
+  "talked", "sent_documents", "in_process", "closed", "not_relevant",
+  "not_interested", "wrong_info"
 ]);
 export const refundStageEnum = pgEnum("refund_stage", [
   "details_received", "waiting_documents", "document_review",
@@ -89,6 +90,8 @@ export const clients = pgTable("clients", {
   receiptDate: date("receipt_date"),
   // Pensions — 6 years back check. JSON array of checked years (strings), e.g. ["2020","2022"].
   pensionYearsChecked: text("pension_years_checked"),
+  // Reason text when contactStatus = not_relevant (free text from a dialog)
+  notRelevantReason: text("not_relevant_reason"),
   address: text("address"),
   status: clientStatusEnum("status").notNull().default("lead"),
   clientProcessStatus: clientProcessStatusEnum("client_process_status").default("lead"),

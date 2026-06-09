@@ -44,15 +44,122 @@ const contactStatusLabels: Record<string, string> = {
   no_answer_4: "אין מענה 4",
   no_answer_5: "אין מענה 5",
   no_answer_6: "אין מענה 6",
-  talked: "דיברנו",
+  talked: "ענה",
   sent_documents: "שלח מסמכים",
   in_process: "בתהליך",
   closed: "נסגר",
   not_relevant: "לא רלוונטי",
+  not_interested: "לא מעוניין",
+  wrong_info: "השאיר פרטים בטעות",
 };
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
+}
+
+function ActionStatusButton({
+  client,
+  onChangeStatus,
+  onOpenReminder,
+  onOpenNotRelevant,
+}: {
+  client: Client;
+  onChangeStatus: (status: string) => void;
+  onOpenReminder: () => void;
+  onOpenNotRelevant: () => void;
+}) {
+  const status = client.contactStatus || "";
+  const label = contactStatusLabels[status] || "פעולה";
+
+  const colorClass = (() => {
+    if (!status || status === "new") return "bg-blue-100 text-blue-800 hover:bg-blue-200";
+    if (status.startsWith("no_answer")) return "bg-red-100 text-red-800 hover:bg-red-200";
+    if (status === "talked") return "bg-amber-100 text-amber-800 hover:bg-amber-200";
+    if (["not_relevant", "not_interested", "wrong_info"].includes(status)) return "bg-gray-200 text-gray-700 hover:bg-gray-300";
+    return "bg-muted hover:bg-muted/80";
+  })();
+
+  // Next no_answer level — cycles 1→6, stays at 6
+  function nextNoAnswer() {
+    const current = parseInt((status.match(/^no_answer_(\d)$/)?.[1]) || "0", 10);
+    const next = Math.min(current + 1, 6) || 1;
+    return `no_answer_${next}`;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={`px-2 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 min-w-[90px] justify-between ${colorClass}`}
+          data-testid={`action-status-${client.id}`}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown className="w-3 h-3 flex-shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onClick={() => onChangeStatus("talked")}>
+          <span className="text-amber-700">●</span>&nbsp;ענה
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChangeStatus(nextNoAnswer())}>
+          <span className="text-red-600">●</span>&nbsp;לא ענה
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChangeStatus("not_interested")}>
+          <span className="text-gray-500">●</span>&nbsp;לא מעוניין
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChangeStatus("wrong_info")}>
+          <span className="text-gray-500">●</span>&nbsp;השאיר פרטים בטעות
+        </DropdownMenuItem>
+        <div className="h-px bg-muted my-1" />
+        <DropdownMenuItem onClick={onOpenReminder}>
+          <Bell className="w-3.5 h-3.5 ml-2 text-amber-600" />ליצור קשר בזמן אחר
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpenNotRelevant}>
+          <span className="text-gray-600 ml-2">✕</span>לא רלוונטי
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function NotRelevantReasonDialog({
+  client,
+  open,
+  onClose,
+  onConfirm,
+}: {
+  client: Client;
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState(client.notRelevantReason || "");
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent dir="rtl" className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>סימון "לא רלוונטי" — {client.fullName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Label>סיבה</Label>
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={4}
+            placeholder="למשל: אין הכנסות בשנים הרלוונטיות / כבר בטיפול אצל יועץ אחר / מספר לא תקין..."
+            autoFocus
+          />
+          <div className="flex justify-start gap-2">
+            <Button onClick={() => { onConfirm(reason.trim()); onClose(); }}>
+              סמן כלא רלוונטי
+            </Button>
+            <Button variant="outline" onClick={onClose}>ביטול</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function contactStatusColor(status: string | null): string {
@@ -302,6 +409,7 @@ export default function Clients() {
   const [newClientSource, setNewClientSource] = useState("direct");
   const [reminderClient, setReminderClient] = useState<Client | null>(null);
   const [shareClient, setShareClient] = useState<Client | null>(null);
+  const [notRelevantClient, setNotRelevantClient] = useState<Client | null>(null);
   const [expandedCriteria, setExpandedCriteria] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -345,8 +453,26 @@ export default function Clients() {
     },
   });
 
+  // Generic contactStatus updater used by the action column dropdown
+  const contactStatusMutation = useMutation({
+    mutationFn: async ({ id, contactStatus, notRelevantReason }: { id: string; contactStatus: string; notRelevantReason?: string }) => {
+      const payload: Record<string, any> = { contactStatus };
+      if (notRelevantReason !== undefined) payload.notRelevantReason = notRelevantReason;
+      await apiRequest("PATCH", `/api/clients/${id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+    },
+  });
+
   const filtered = useMemo(() => {
+    // Hide clients that landed in "next year" (receipt date filled)
+    // or in "not relevant" (3 contact statuses). Keeps the main list focused
+    // on leads to actively work on.
+    const HIDDEN_CONTACT_STATUSES = ["not_relevant", "not_interested", "wrong_info"];
     return (clients || []).filter(c => {
+      if (c.receiptDate) return false;
+      if (c.contactStatus && HIDDEN_CONTACT_STATUSES.includes(c.contactStatus)) return false;
       const matchesSearch =
         c.fullName.toLowerCase().includes(search.toLowerCase()) ||
         c.email?.toLowerCase().includes(search.toLowerCase()) ||
@@ -625,6 +751,7 @@ export default function Clients() {
                     <TableHead className="text-right w-[100px] px-2">תאריך הגשה</TableHead>
                     <TableHead className="text-right w-[90px] px-2">עמלה</TableHead>
                     <TableHead className="text-right w-[100px] px-2">תאריך תקבול</TableHead>
+                    <TableHead className="text-right w-[110px] px-2">פעולה</TableHead>
                     <TableHead className="w-[70px] px-2"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -734,6 +861,14 @@ export default function Clients() {
                           />
                         </TableCell>
                         <TableCell className="px-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <ActionStatusButton
+                            client={client}
+                            onChangeStatus={(s) => contactStatusMutation.mutate({ id: client.id, contactStatus: s })}
+                            onOpenReminder={() => setReminderClient(client)}
+                            onOpenNotRelevant={() => setNotRelevantClient(client)}
+                          />
+                        </TableCell>
+                        <TableCell className="px-2 align-middle" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button size="icon" variant="ghost" className="h-6 w-6" data-testid={`button-menu-client-${client.id}`}>
@@ -764,6 +899,21 @@ export default function Clients() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {notRelevantClient && (
+        <NotRelevantReasonDialog
+          client={notRelevantClient}
+          open={!!notRelevantClient}
+          onClose={() => setNotRelevantClient(null)}
+          onConfirm={(reason) => {
+            contactStatusMutation.mutate({
+              id: notRelevantClient.id,
+              contactStatus: "not_relevant",
+              notRelevantReason: reason,
+            });
+          }}
+        />
       )}
 
       {reminderClient && (
