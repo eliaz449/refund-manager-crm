@@ -107,23 +107,34 @@ app.use((req, res, next) => {
     }
   });
 
-  // Debug: force a single reminder to be emailed right now (skips the loop).
-  app.post("/api/debug/email-reminder/:id", async (req, res) => {
+  // Debug: force-trigger the email scheduler ONCE — picks up all pending
+  // reminders right now without waiting for the next 60s tick.
+  app.post("/api/debug/run-email-scheduler", async (_req, res) => {
     try {
       const { storage } = await import("./storage");
-      const { sendReminderEmail } = await import("./email");
-      const reminder = await (db => db.select().from((await import("@shared/schema")).reminders).then(rs => rs.find(r => r.id === req.params.id)))((await import("./db")).db);
-      if (!reminder) return res.status(404).json({ error: "reminder not found" });
-      const client = await storage.getClient(reminder.clientId);
-      await sendReminderEmail({
-        clientId: reminder.clientId,
-        clientName: client?.fullName ?? "לקוח",
-        clientPhone: client?.phone ?? null,
-        reminderNote: reminder.content,
-        scheduledAt: reminder.reminderAt,
-      });
-      await storage.markReminderEmailNotified(reminder.id);
-      res.json({ ok: true });
+      const { sendReminderEmail, isEmailConfigured } = await import("./email");
+      if (!isEmailConfigured()) {
+        return res.status(503).json({ error: "RESEND_API_KEY not set" });
+      }
+      const pending = await storage.getPendingEmailReminders();
+      const results: any[] = [];
+      for (const reminder of pending) {
+        try {
+          const client = await storage.getClient(reminder.clientId);
+          await sendReminderEmail({
+            clientId: reminder.clientId,
+            clientName: client?.fullName ?? "לקוח",
+            clientPhone: client?.phone ?? null,
+            reminderNote: reminder.content,
+            scheduledAt: reminder.reminderAt,
+          });
+          await storage.markReminderEmailNotified(reminder.id);
+          results.push({ id: reminder.id, sent: true });
+        } catch (err: any) {
+          results.push({ id: reminder.id, sent: false, error: err.message });
+        }
+      }
+      res.json({ pendingCount: pending.length, results });
     } catch (err: any) {
       res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
     }
