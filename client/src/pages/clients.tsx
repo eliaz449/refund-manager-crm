@@ -254,8 +254,13 @@ function AddReminderModal({
   const [reminderAt, setReminderAt] = useState("");
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("POST", `/api/clients/${client.id}/reminders`, { content, reminderAt }),
+    mutationFn: () => {
+      // <input type="datetime-local"> returns "2026-06-10T00:12" with no
+      // timezone. Convert to UTC ISO so the server stores the actual moment
+      // the user picked (in their local timezone).
+      const localUtc = new Date(reminderAt).toISOString();
+      return apiRequest("POST", `/api/clients/${client.id}/reminders`, { content, reminderAt: localUtc });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/reminders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clients", client.id, "reminders"] });
