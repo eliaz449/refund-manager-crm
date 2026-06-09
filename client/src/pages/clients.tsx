@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/status-badge";
+import { EditableCell } from "@/components/EditableCell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -539,8 +540,7 @@ export default function Clients() {
               return (
                 <Card
                   key={client.id}
-                  className={`cursor-pointer border ${rowColor}`}
-                  onClick={() => setLocation(`/clients/${client.id}`)}
+                  className={`border ${rowColor}`}
                   data-testid={`card-client-${client.id}`}
                 >
                   <CardContent className="p-4 space-y-2">
@@ -569,7 +569,7 @@ export default function Clients() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start">
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
-                            <Eye className="w-4 h-4 ml-2" />צפה
+                            <Eye className="w-4 h-4 ml-2" />כניסה לליד
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShareClient(client); }}>
                             <Handshake className="w-4 h-4 ml-2" />העבר לשותף
@@ -634,85 +634,127 @@ export default function Clients() {
                     return (
                       <TableRow
                         key={client.id}
-                        className={`cursor-pointer ${rowColor}`}
-                        onClick={() => setLocation(`/clients/${client.id}`)}
+                        className={rowColor}
                         data-testid={`row-client-${client.id}`}
                       >
-                        <TableCell className="px-2 font-mono text-xs" dir="ltr">
-                          {client.taxId || <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="taxId"
+                            value={client.taxId}
+                            type="text"
+                            dir="ltr"
+                            className="font-mono"
+                            placeholder="ת.ז."
+                          />
                         </TableCell>
-                        <TableCell className="px-2">
-                          <p className="font-medium text-sm truncate" data-testid={`text-client-name-${client.id}`}>
-                            {client.fullName}
-                          </p>
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="fullName"
+                            value={client.fullName}
+                            type="text"
+                            placeholder="שם"
+                          />
                         </TableCell>
-                        <TableCell className="px-2">
-                          {client.phone
-                            ? <PhoneLink phone={client.phone} />
-                            : <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="phone"
+                            value={client.phone}
+                            type="text"
+                            dir="ltr"
+                            placeholder="טלפון"
+                          />
                         </TableCell>
-                        <TableCell className="px-2">
-                          {client.customStatus
-                            ? <span className="truncate block max-w-[140px]" title={client.customStatus}>{client.customStatus}</span>
-                            : <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="customStatus"
+                            value={client.customStatus}
+                            type="text"
+                            placeholder="סטטוס"
+                          />
                         </TableCell>
-                        <TableCell className="px-2 text-muted-foreground">
-                          {sourceLabels[client.source || ""] || client.source || "—"}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="source"
+                            value={client.source}
+                            type="select"
+                            options={[
+                              { value: "referral", label: "הפניה" },
+                              { value: "website", label: "אתר" },
+                              { value: "social_media", label: "סושיאל" },
+                              { value: "direct", label: "ישיר" },
+                              { value: "recommended", label: "מומלצים" },
+                              { value: "other", label: "אחר" },
+                            ]}
+                          />
                         </TableCell>
-                        <TableCell className="px-2 whitespace-nowrap">
-                          {client.refundEstimateAmount
-                            ? formatCurrency(parseFloat(client.refundEstimateAmount))
-                            : <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="refundEstimateAmount"
+                            value={client.refundEstimateAmount}
+                            type="number"
+                            format={(v) => formatCurrency(parseFloat(v))}
+                            placeholder="צפי החזר"
+                          />
                         </TableCell>
-                        <TableCell className="px-2 whitespace-nowrap">
-                          {client.submissionDate
-                            ? new Date(client.submissionDate).toLocaleDateString("he-IL")
-                            : <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="submissionDate"
+                            value={client.submissionDate}
+                            type="date"
+                            format={(v) => new Date(v).toLocaleDateString("he-IL")}
+                            placeholder="תאריך"
+                          />
                         </TableCell>
-                        <TableCell className="px-2 whitespace-nowrap">
-                          {client.commissionAmount
-                            ? formatCurrency(parseFloat(client.commissionAmount))
-                            : <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="commissionAmount"
+                            value={client.commissionAmount}
+                            type="number"
+                            format={(v) => formatCurrency(parseFloat(v))}
+                            placeholder="עמלה"
+                          />
                         </TableCell>
-                        <TableCell className="px-2 whitespace-nowrap">
-                          {client.receiptDate
-                            ? <span className="text-green-700 font-medium">{new Date(client.receiptDate).toLocaleDateString("he-IL")}</span>
-                            : <span className="text-muted-foreground">—</span>}
+                        <TableCell className="px-2 align-middle">
+                          <EditableCell
+                            clientId={client.id}
+                            field="receiptDate"
+                            value={client.receiptDate}
+                            type="date"
+                            format={(v) => new Date(v).toLocaleDateString("he-IL")}
+                            placeholder="תאריך"
+                            className={client.receiptDate ? "text-green-700 font-medium" : ""}
+                          />
                         </TableCell>
-                        <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-0.5">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6"
-                              onClick={() => setShareClient(client)}
-                              title="העבר לשותף"
-                              data-testid={`button-share-partner-${client.id}`}
-                            >
-                              <Handshake className="w-3 h-3" />
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-6 w-6" data-testid={`button-menu-client-${client.id}`}>
-                                  <MoreHorizontal className="w-3.5 h-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start">
-                                <DropdownMenuItem onClick={() => setLocation(`/clients/${client.id}`)}>
-                                  <Eye className="w-4 h-4 ml-2" />צפה
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setShareClient(client)}>
-                                  <Handshake className="w-4 h-4 ml-2" />העבר לשותף
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => deleteMutation.mutate(client.id)}
-                                >
-                                  <Trash2 className="w-4 h-4 ml-2" />מחק
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                        <TableCell className="px-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" data-testid={`button-menu-client-${client.id}`}>
+                                <MoreHorizontal className="w-3.5 h-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onClick={() => setLocation(`/clients/${client.id}`)}>
+                                <Eye className="w-4 h-4 ml-2" />כניסה לליד
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setShareClient(client)}>
+                                <Handshake className="w-4 h-4 ml-2" />העבר לשותף
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => deleteMutation.mutate(client.id)}
+                              >
+                                <Trash2 className="w-4 h-4 ml-2" />מחק
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );
