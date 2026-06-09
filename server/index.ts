@@ -84,6 +84,51 @@ app.use((req, res, next) => {
     });
   });
 
+  // Debug: probes the email scheduler from outside.
+  // Returns counts + the LAST scheduler error (if any).
+  app.get("/api/debug/email-reminder-status", async (_req, res) => {
+    try {
+      const { storage } = await import("./storage");
+      const { isEmailConfigured } = await import("./email");
+      const pending = await storage.getPendingEmailReminders();
+      res.json({
+        emailConfigured: isEmailConfigured(),
+        pendingCount: pending.length,
+        pending: pending.map(r => ({
+          id: r.id,
+          content: r.content,
+          reminderAt: r.reminderAt,
+          emailNotified: r.emailNotified,
+        })),
+        lastError: (global as any).__lastEmailSchedulerError ?? null,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
+    }
+  });
+
+  // Debug: force a single reminder to be emailed right now (skips the loop).
+  app.post("/api/debug/email-reminder/:id", async (req, res) => {
+    try {
+      const { storage } = await import("./storage");
+      const { sendReminderEmail } = await import("./email");
+      const reminder = await (db => db.select().from((await import("@shared/schema")).reminders).then(rs => rs.find(r => r.id === req.params.id)))((await import("./db")).db);
+      if (!reminder) return res.status(404).json({ error: "reminder not found" });
+      const client = await storage.getClient(reminder.clientId);
+      await sendReminderEmail({
+        clientId: reminder.clientId,
+        clientName: client?.fullName ?? "לקוח",
+        clientPhone: client?.phone ?? null,
+        reminderNote: reminder.content,
+        scheduledAt: reminder.reminderAt,
+      });
+      await storage.markReminderEmailNotified(reminder.id);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
+    }
+  });
+
   const { runMigrations } = await import("./migrations");
   await runMigrations().catch(err => console.error("Migrations error:", err));
   const { seedDatabase } = await import("./seed");
@@ -161,7 +206,10 @@ app.use((req, res, next) => {
   // Sends a styled HTML email (template mirrors the lead-notification
   // email) to REMINDER_EMAIL_TO when a reminder comes due.
   setInterval(async () => {
-    if (!isEmailConfigured()) return;
+    if (!isEmailConfigured()) {
+      (global as any).__lastEmailSchedulerError = "RESEND_API_KEY not set";
+      return;
+    }
     try {
       const pending = await storage.getPendingEmailReminders();
       if (pending.length === 0) return;
@@ -179,11 +227,14 @@ app.use((req, res, next) => {
           await storage.markReminderEmailNotified(reminder.id);
           console.log(`[Email] Reminder ${reminder.id} → ✅ sent`);
         } catch (err: any) {
-          console.error(`[Email] Reminder ${reminder.id} error:`, err.message);
+          const msg = `Reminder ${reminder.id}: ${err.message}`;
+          console.error(`[Email] ${msg}`);
+          (global as any).__lastEmailSchedulerError = msg;
         }
       }
     } catch (err: any) {
       console.error("[Email] Scheduler error:", err.message);
+      (global as any).__lastEmailSchedulerError = `Scheduler: ${err.message}`;
     }
   }, 60_000);
   // ────────────────────────────────────────────────────────────────
