@@ -123,6 +123,54 @@ app.use((req, res, next) => {
     }
   });
 
+  // Debug: send a test reminder email immediately without touching the
+  // reminders table. Verifies the Resend pipeline works end-to-end.
+  app.post("/api/debug/send-test-email", async (_req, res) => {
+    try {
+      const { sendReminderEmail, isEmailConfigured } = await import("./email");
+      if (!isEmailConfigured()) {
+        return res.status(503).json({ error: "RESEND_API_KEY not set" });
+      }
+      await sendReminderEmail({
+        clientId: "test",
+        clientName: "בדיקת מערכת",
+        clientPhone: "0500000000",
+        reminderNote: "זוהי בדיקה אוטומטית של מערכת התזכורות. אם הגיע המייל הזה — הכל עובד תקין!",
+        scheduledAt: new Date(),
+      });
+      res.json({ ok: true, sentTo: process.env.REMINDER_EMAIL_TO ?? "edenabergel94@gmail.com" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Debug: send a specific existing reminder NOW, regardless of its time.
+  app.post("/api/debug/send-reminder-now/:id", async (req, res) => {
+    try {
+      const { storage } = await import("./storage");
+      const { sendReminderEmail, isEmailConfigured } = await import("./email");
+      const { db } = await import("./db");
+      const { reminders } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      if (!isEmailConfigured()) return res.status(503).json({ error: "RESEND_API_KEY not set" });
+      const [reminder] = await db.select().from(reminders).where(eq(reminders.id, req.params.id));
+      if (!reminder) return res.status(404).json({ error: "reminder not found" });
+      const client = await storage.getClient(reminder.clientId);
+      await sendReminderEmail({
+        clientId: reminder.clientId,
+        clientName: client?.fullName ?? "לקוח",
+        clientPhone: client?.phone ?? null,
+        reminderNote: reminder.content,
+        scheduledAt: reminder.reminderAt,
+      });
+      await storage.markReminderEmailNotified(reminder.id);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Debug: force-trigger the email scheduler ONCE — picks up all pending
   // reminders right now without waiting for the next 60s tick.
   app.post("/api/debug/run-email-scheduler", async (_req, res) => {
