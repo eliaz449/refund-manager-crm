@@ -71,6 +71,19 @@ app.use((req, res, next) => {
     res.json({ status: "ok" });
   });
 
+  // Tells us which build is currently running — used to verify deploys
+  // without DB access. Bumped manually each time we want to confirm deploy.
+  app.get("/api/version", (_req, res) => {
+    res.json({
+      version: "2026-06-10-email-reminders",
+      features: {
+        reminderEmailScheduler: true,
+        documentsUpload: true,
+        notRelevantPage: true,
+      },
+    });
+  });
+
   const { runMigrations } = await import("./migrations");
   await runMigrations().catch(err => console.error("Migrations error:", err));
   const { seedDatabase } = await import("./seed");
