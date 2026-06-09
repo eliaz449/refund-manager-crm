@@ -6,6 +6,7 @@ import { createServer } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { sendCallMeBot, formatReminderMessage, logWhatsAppConfig } from "./whatsapp";
+import { sendReminderEmail, isEmailConfigured } from "./email";
 
 const app = express();
 const httpServer = createServer(app);
@@ -140,6 +141,36 @@ app.use((req, res, next) => {
       }
     } catch (err: any) {
       console.error("[WhatsApp] Scheduler error:", err.message);
+    }
+  }, 60_000);
+
+  // ─── Email Reminder Scheduler ─────────────────────────────────────
+  // Sends a styled HTML email (template mirrors the lead-notification
+  // email) to REMINDER_EMAIL_TO when a reminder comes due.
+  setInterval(async () => {
+    if (!isEmailConfigured()) return;
+    try {
+      const pending = await storage.getPendingEmailReminders();
+      if (pending.length === 0) return;
+      console.log(`[Email] Scheduler: ${pending.length} pending reminder(s)`);
+      for (const reminder of pending) {
+        try {
+          const client = await storage.getClient(reminder.clientId);
+          await sendReminderEmail({
+            clientId: reminder.clientId,
+            clientName: client?.fullName ?? "לקוח לא ידוע",
+            clientPhone: client?.phone ?? null,
+            reminderNote: reminder.content,
+            scheduledAt: reminder.reminderAt,
+          });
+          await storage.markReminderEmailNotified(reminder.id);
+          console.log(`[Email] Reminder ${reminder.id} → ✅ sent`);
+        } catch (err: any) {
+          console.error(`[Email] Reminder ${reminder.id} error:`, err.message);
+        }
+      }
+    } catch (err: any) {
+      console.error("[Email] Scheduler error:", err.message);
     }
   }, 60_000);
   // ────────────────────────────────────────────────────────────────

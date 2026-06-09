@@ -90,6 +90,8 @@ export interface IStorage {
   deleteReminder(id: string): Promise<void>;
   getPendingWhatsappReminders(): Promise<Reminder[]>;
   markReminderWhatsappNotified(id: string): Promise<void>;
+  getPendingEmailReminders(): Promise<Reminder[]>;
+  markReminderEmailNotified(id: string): Promise<void>;
 
   getPartnerLeads(partnerId?: string): Promise<PartnerLead[]>;
   getPartnerLead(id: string): Promise<PartnerLead | undefined>;
@@ -366,6 +368,21 @@ export class DatabaseStorage implements IStorage {
 
   async markReminderWhatsappNotified(id: string): Promise<void> {
     await db.update(reminders).set({ whatsappNotified: true }).where(eq(reminders.id, id));
+  }
+
+  async getPendingEmailReminders(): Promise<Reminder[]> {
+    return db.select().from(reminders)
+      .where(and(
+        eq(reminders.isDismissed, false),
+        eq(reminders.emailNotified, false),
+        sql`${reminders.reminderAt} <= NOW()`,
+        sql`(${reminders.snoozedUntil} IS NULL OR ${reminders.snoozedUntil} <= NOW())`
+      ))
+      .orderBy(reminders.reminderAt);
+  }
+
+  async markReminderEmailNotified(id: string): Promise<void> {
+    await db.update(reminders).set({ emailNotified: true }).where(eq(reminders.id, id));
   }
 
   async getDashboardStats() {
