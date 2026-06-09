@@ -90,7 +90,13 @@ app.use((req, res, next) => {
     try {
       const { storage } = await import("./storage");
       const { isEmailConfigured } = await import("./email");
+      const { db } = await import("./db");
+      const { reminders } = await import("@shared/schema");
+      const { desc } = await import("drizzle-orm");
+
       const pending = await storage.getPendingEmailReminders();
+      const all = await db.select().from(reminders).orderBy(desc(reminders.createdAt)).limit(10);
+
       res.json({
         emailConfigured: isEmailConfigured(),
         pendingCount: pending.length,
@@ -101,6 +107,16 @@ app.use((req, res, next) => {
           emailNotified: r.emailNotified,
         })),
         lastError: (global as any).__lastEmailSchedulerError ?? null,
+        serverNow: new Date().toISOString(),
+        recentReminders: all.map(r => ({
+          id: r.id,
+          content: r.content,
+          reminderAt: r.reminderAt,
+          isDismissed: r.isDismissed,
+          whatsappNotified: r.whatsappNotified,
+          emailNotified: r.emailNotified,
+          snoozedUntil: r.snoozedUntil,
+        })),
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
