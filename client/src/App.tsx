@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Clients from "@/pages/clients";
 import ClientDetail from "@/pages/client-detail";
+import NextYearLeads from "@/pages/next-year-leads";
 import Transactions from "@/pages/transactions";
 import Settings from "@/pages/settings";
 import WebhookEvents from "@/pages/webhook-events";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/clients" component={Clients} />
       <Route path="/clients/:id" component={ClientDetail} />
+      <Route path="/next-year-leads" component={NextYearLeads} />
       <Route path="/cases"><Redirect to="/clients" /></Route>
       <Route path="/tasks"><Redirect to="/clients" /></Route>
       <Route path="/payments"><Redirect to="/clients" /></Route>

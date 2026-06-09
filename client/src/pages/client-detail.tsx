@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/status-badge";
 import { DocumentsSection } from "@/components/DocumentsSection";
+import { PensionChecklist } from "@/components/PensionChecklist";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -347,9 +348,11 @@ export default function ClientDetail() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-client-name">{client.fullName}</h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <StatusBadge status={client.status} />
-            <StatusBadge status={client.clientProcessStatus} />
-            {client.contactStatus && <StatusBadge status={client.contactStatus} />}
-            {client.refundStage && <StatusBadge status={client.refundStage} />}
+            {client.customStatus && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                {client.customStatus}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -510,33 +513,13 @@ export default function ClientDetail() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>סטטוס תהליך</Label>
-              <Select value={editData.clientProcessStatus || ""} onValueChange={handleProcessStatusChange}>
-                <SelectTrigger data-testid="select-edit-process"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lead">ליד</SelectItem>
-                  <SelectItem value="initial_process">תהליך ראשוני</SelectItem>
-                  <SelectItem value="waiting_for_documents">ממתין למסמכים</SelectItem>
-                  <SelectItem value="ready_for_case_opening">מוכן לפתיחת תיק</SelectItem>
-                  <SelectItem value="in_treatment">בטיפול</SelectItem>
-                  <SelectItem value="transferred_to_accountant">הועבר לרואה חשבון</SelectItem>
-                  <SelectItem value="ready_for_submission">מוכן להגשה</SelectItem>
-                  <SelectItem value="submitted_to_tax_authority">הוגש לרשות המסים</SelectItem>
-                  <SelectItem value="paid_and_closed">שולם ונסגר</SelectItem>
-                  <SelectItem value="not_relevant">לא רלוונטי</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>שלב החזר מס</Label>
-              <Select value={editData.refundStage || ""} onValueChange={(v) => setEditData({ ...editData, refundStage: v as any })}>
-                <SelectTrigger data-testid="select-edit-refund-stage"><SelectValue placeholder="בחר שלב" /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(refundStageLabels).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>סטטוס (טקסט חופשי)</Label>
+              <Input
+                value={editData.customStatus || ""}
+                onChange={(e) => setEditData({ ...editData, customStatus: e.target.value })}
+                placeholder="כתוב מה שתרצי..."
+                data-testid="input-edit-custom-status"
+              />
             </div>
             <div className="space-y-2">
               <Label>מקור</Label>
@@ -611,6 +594,60 @@ export default function ClientDetail() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-semibold mb-3">החזר מס</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>צפי להחזר (₪)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editData.refundEstimateAmount || ""}
+                  onChange={(e) => setEditData({ ...editData, refundEstimateAmount: e.target.value })}
+                  data-testid="input-edit-refund-estimate"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>תאריך הגשה</Label>
+                <Input
+                  type="date"
+                  value={editData.submissionDate || ""}
+                  onChange={(e) => setEditData({ ...editData, submissionDate: e.target.value })}
+                  data-testid="input-edit-submission-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>עמלה (₪)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editData.commissionAmount || ""}
+                  onChange={(e) => setEditData({ ...editData, commissionAmount: e.target.value })}
+                  data-testid="input-edit-commission"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>תאריך תקבול</Label>
+                <Input
+                  type="date"
+                  value={editData.receiptDate || ""}
+                  onChange={(e) => setEditData({ ...editData, receiptDate: e.target.value })}
+                  data-testid="input-edit-receipt-date"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-sm font-semibold mb-3">בדיקת גמלאות (6 שנים אחורה)</h4>
+            <p className="text-xs text-muted-foreground mb-3">סמני וי לשנים שבדקת אם מגיעה גמלה</p>
+            <PensionChecklist
+              createdAt={client.createdAt}
+              value={editData.pensionYearsChecked || ""}
+              onChange={(v) => setEditData({ ...editData, pensionYearsChecked: v })}
+            />
           </div>
 
           <div className="space-y-2">

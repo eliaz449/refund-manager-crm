@@ -50,6 +50,10 @@ const contactStatusLabels: Record<string, string> = {
   not_relevant: "לא רלוונטי",
 };
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
+}
+
 function contactStatusColor(status: string | null): string {
   if (!status) return "";
   if (status === "new") return "bg-blue-50 dark:bg-blue-950/20";
@@ -531,9 +535,7 @@ export default function Clients() {
           {/* ── Mobile cards ── */}
           <div className="md:hidden space-y-3">
             {sorted.map(client => {
-              const nextReminder = remindersByClient[client.id];
               const rowColor = contactStatusColor(client.contactStatus);
-              const criteriaOpen = expandedCriteria.has(client.id);
               return (
                 <Card
                   key={client.id}
@@ -548,10 +550,14 @@ export default function Clients() {
                           <p className="font-semibold text-sm truncate" data-testid={`text-client-name-${client.id}`}>
                             {client.fullName}
                           </p>
-                          {nextReminder && <Bell className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
-                          <StatusBadge status={client.status} />
+                          {client.customStatus && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                              {client.customStatus}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-2 mt-1">
+                          {client.taxId && <span className="text-xs text-muted-foreground font-mono" dir="ltr">{client.taxId}</span>}
                           {client.phone && <PhoneLink phone={client.phone} />}
                         </div>
                       </div>
@@ -564,9 +570,6 @@ export default function Clients() {
                         <DropdownMenuContent align="start">
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setLocation(`/clients/${client.id}`); }}>
                             <Eye className="w-4 h-4 ml-2" />צפה
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setReminderClient(client); }}>
-                            <Bell className="w-4 h-4 ml-2" />הוסף תזכורת
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShareClient(client); }}>
                             <Handshake className="w-4 h-4 ml-2" />העבר לשותף
@@ -581,34 +584,26 @@ export default function Clients() {
                       </DropdownMenu>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {contactStatusBadge(client.contactStatus)}
-                      {client.source && (
-                        <span className="text-xs text-muted-foreground">{sourceLabels[client.source] || client.source}</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-1 border-t text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{relativeTime(client.createdAt)}</span>
-                      </div>
-                      {nextReminder && <ReminderIndicator reminder={nextReminder} />}
-                    </div>
-
-                    <button
-                      className="w-full text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
-                      onClick={(e) => { e.stopPropagation(); toggleCriteria(client.id); }}
-                      data-testid={`button-toggle-criteria-${client.id}`}
-                    >
-                      {criteriaOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      קריטריונים
-                    </button>
-                    {criteriaOpen && (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <CriteriaChecklist client={client} />
+                    {client.source && (
+                      <div className="text-xs text-muted-foreground">
+                        מקור: {sourceLabels[client.source] || client.source}
                       </div>
                     )}
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t text-xs">
+                      {client.refundEstimateAmount && (
+                        <div><span className="text-muted-foreground">צפי החזר:</span> {formatCurrency(parseFloat(client.refundEstimateAmount))}</div>
+                      )}
+                      {client.commissionAmount && (
+                        <div><span className="text-muted-foreground">עמלה:</span> {formatCurrency(parseFloat(client.commissionAmount))}</div>
+                      )}
+                      {client.submissionDate && (
+                        <div><span className="text-muted-foreground">הגשה:</span> {new Date(client.submissionDate).toLocaleDateString("he-IL")}</div>
+                      )}
+                      {client.receiptDate && (
+                        <div className="text-green-700 font-medium"><span className="text-muted-foreground">תקבול:</span> {new Date(client.receiptDate).toLocaleDateString("he-IL")}</div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -617,133 +612,109 @@ export default function Clients() {
 
           {/* ── Desktop table ── */}
           <Card className="hidden md:block">
-            <CardContent className="p-0">
-              <Table>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-right w-[180px]">שם</TableHead>
-                    <TableHead className="text-right w-[140px]">טלפון</TableHead>
-                    <TableHead className="text-right w-[120px]">סטטוס קשר</TableHead>
-                    <TableHead className="text-right hidden lg:table-cell w-[90px]">מקור</TableHead>
-                    <TableHead className="text-right w-[130px]">הגיע</TableHead>
-                    <TableHead className="text-right w-[120px]">תזכורת</TableHead>
-                    <TableHead className="text-right w-[130px]">קריטריונים</TableHead>
-                    <TableHead className="w-[90px]"></TableHead>
+                    <TableHead className="text-right w-[110px] px-2">ת.ז.</TableHead>
+                    <TableHead className="text-right w-[150px] px-2">שם</TableHead>
+                    <TableHead className="text-right w-[120px] px-2">טלפון</TableHead>
+                    <TableHead className="text-right w-[140px] px-2">סטטוס</TableHead>
+                    <TableHead className="text-right w-[80px] px-2">מקור</TableHead>
+                    <TableHead className="text-right w-[100px] px-2">צפי החזר</TableHead>
+                    <TableHead className="text-right w-[100px] px-2">תאריך הגשה</TableHead>
+                    <TableHead className="text-right w-[90px] px-2">עמלה</TableHead>
+                    <TableHead className="text-right w-[100px] px-2">תאריך תקבול</TableHead>
+                    <TableHead className="w-[70px] px-2"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sorted.map(client => {
-                    const nextReminder = remindersByClient[client.id];
                     const rowColor = contactStatusColor(client.contactStatus);
-                    const criteriaOpen = expandedCriteria.has(client.id);
                     return (
-                      <Fragment key={client.id}>
-                        <TableRow
-                          className={`cursor-pointer ${rowColor}`}
-                          onClick={() => setLocation(`/clients/${client.id}`)}
-                          data-testid={`row-client-${client.id}`}
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              {nextReminder && <Bell className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
-                              <div className="min-w-0">
-                                <p className="font-medium text-sm truncate" data-testid={`text-client-name-${client.id}`}>
-                                  {client.fullName}
-                                </p>
-                                <StatusBadge status={client.status} />
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {client.phone
-                              ? <PhoneLink phone={client.phone} />
-                              : <span className="text-xs text-muted-foreground">—</span>}
-                          </TableCell>
-                          <TableCell>
-                            {contactStatusBadge(client.contactStatus)}
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            <span className="text-xs text-muted-foreground">
-                              {sourceLabels[client.source || ""] || client.source || "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div data-testid={`text-created-at-${client.id}`}>
-                              <p className="text-xs">{formatDateTime(client.createdAt)}</p>
-                              <p className="text-[11px] text-muted-foreground">{relativeTime(client.createdAt)}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <ReminderIndicator reminder={nextReminder} />
-                            {!nextReminder && <span className="text-xs text-muted-foreground">—</span>}
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableRow
+                        key={client.id}
+                        className={`cursor-pointer ${rowColor}`}
+                        onClick={() => setLocation(`/clients/${client.id}`)}
+                        data-testid={`row-client-${client.id}`}
+                      >
+                        <TableCell className="px-2 font-mono text-xs" dir="ltr">
+                          {client.taxId || <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2">
+                          <p className="font-medium text-sm truncate" data-testid={`text-client-name-${client.id}`}>
+                            {client.fullName}
+                          </p>
+                        </TableCell>
+                        <TableCell className="px-2">
+                          {client.phone
+                            ? <PhoneLink phone={client.phone} />
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2">
+                          {client.customStatus
+                            ? <span className="truncate block max-w-[140px]" title={client.customStatus}>{client.customStatus}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2 text-muted-foreground">
+                          {sourceLabels[client.source || ""] || client.source || "—"}
+                        </TableCell>
+                        <TableCell className="px-2 whitespace-nowrap">
+                          {client.refundEstimateAmount
+                            ? formatCurrency(parseFloat(client.refundEstimateAmount))
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2 whitespace-nowrap">
+                          {client.submissionDate
+                            ? new Date(client.submissionDate).toLocaleDateString("he-IL")
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2 whitespace-nowrap">
+                          {client.commissionAmount
+                            ? formatCurrency(parseFloat(client.commissionAmount))
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2 whitespace-nowrap">
+                          {client.receiptDate
+                            ? <span className="text-green-700 font-medium">{new Date(client.receiptDate).toLocaleDateString("he-IL")}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-0.5">
                             <Button
+                              size="icon"
                               variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs gap-1 text-muted-foreground"
-                              onClick={() => toggleCriteria(client.id)}
-                              data-testid={`button-toggle-criteria-${client.id}`}
+                              className="h-6 w-6"
+                              onClick={() => setShareClient(client)}
+                              title="העבר לשותף"
+                              data-testid={`button-share-partner-${client.id}`}
                             >
-                              {criteriaOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              פרטים
+                              <Handshake className="w-3 h-3" />
                             </Button>
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                onClick={() => setReminderClient(client)}
-                                title="הוסף תזכורת"
-                                data-testid={`button-add-reminder-${client.id}`}
-                              >
-                                <Bell className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                onClick={() => setShareClient(client)}
-                                title="העבר לשותף"
-                                data-testid={`button-share-partner-${client.id}`}
-                              >
-                                <Handshake className="w-3.5 h-3.5" />
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-menu-client-${client.id}`}>
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start">
-                                  <DropdownMenuItem onClick={() => setLocation(`/clients/${client.id}`)}>
-                                    <Eye className="w-4 h-4 ml-2" />צפה
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setShareClient(client)}>
-                                    <Handshake className="w-4 h-4 ml-2" />העבר לשותף
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => deleteMutation.mutate(client.id)}
-                                  >
-                                    <Trash2 className="w-4 h-4 ml-2" />מחק
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-
-                        {criteriaOpen && (
-                          <TableRow className={rowColor}>
-                            <TableCell colSpan={8} className="py-2 px-4 bg-muted/30">
-                              <CriteriaChecklist client={client} />
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" data-testid={`button-menu-client-${client.id}`}>
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                <DropdownMenuItem onClick={() => setLocation(`/clients/${client.id}`)}>
+                                  <Eye className="w-4 h-4 ml-2" />צפה
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setShareClient(client)}>
+                                  <Handshake className="w-4 h-4 ml-2" />העבר לשותף
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => deleteMutation.mutate(client.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 ml-2" />מחק
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
                 </TableBody>

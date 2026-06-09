@@ -80,6 +80,15 @@ export const clients = pgTable("clients", {
   idIssueDate: date("id_issue_date"),
   idDocumentNumber: text("id_document_number"),
   refundPaidToClient: numeric("refund_paid_to_client"),
+  // Free-text status (replaces visible enums in UI — old enums kept for compat)
+  customStatus: text("custom_status"),
+  // Refund tracking — per client (one tax case)
+  refundEstimateAmount: numeric("refund_estimate_amount"),
+  submissionDate: date("submission_date"),
+  commissionAmount: numeric("commission_amount"),
+  receiptDate: date("receipt_date"),
+  // Pensions — 6 years back check. JSON array of checked years (strings), e.g. ["2020","2022"].
+  pensionYearsChecked: text("pension_years_checked"),
   address: text("address"),
   status: clientStatusEnum("status").notNull().default("lead"),
   clientProcessStatus: clientProcessStatusEnum("client_process_status").default("lead"),
