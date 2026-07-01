@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   LayoutDashboard, Users, Handshake, CalendarClock, CircleSlash,
-  ArrowLeftRight, Building2, LogOut, Settings, Webhook
+  ArrowLeftRight, Building2, LogOut, Settings, Webhook, Trash2
 } from "lucide-react";
 import {
   Sidebar,
@@ -23,6 +23,7 @@ const mainItems = [
   { title: "לקוחות", url: "/clients", icon: Users },
   { title: "לידים לשנה הבאה", url: "/next-year-leads", icon: CalendarClock },
   { title: "לידים לא רלוונטיים", url: "/not-relevant-leads", icon: CircleSlash },
+  { title: "לקוחות שנמחקו", url: "/deleted-clients", icon: Trash2 },
   { title: "שותפים", url: "/partners", icon: Handshake },
   { title: "תנועות", url: "/transactions", icon: ArrowLeftRight },
   { title: "Webhooks", url: "/webhook-events", icon: Webhook },

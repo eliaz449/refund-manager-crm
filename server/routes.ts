@@ -45,6 +45,11 @@ export async function registerRoutes(
     res.json(clients);
   });
 
+  app.get("/api/clients/deleted", requireAuth, async (_req, res) => {
+    const deleted = await storage.getDeletedClients();
+    res.json(deleted);
+  });
+
   app.get("/api/clients/:id", requireAuth, async (req, res) => {
     const client = await storage.getClient(req.params.id);
     if (!client) return res.status(404).json({ message: "Client not found" });
@@ -112,6 +117,12 @@ export async function registerRoutes(
   app.delete("/api/clients/:id", requireAuth, async (req, res) => {
     await storage.deleteClient(req.params.id);
     res.status(204).send();
+  });
+
+  app.post("/api/clients/:id/restore", requireAuth, async (req, res) => {
+    const restored = await storage.restoreClient(req.params.id);
+    if (!restored) return res.status(404).json({ message: "Client not found" });
+    res.json(restored);
   });
 
   app.get("/api/cases", requireAuth, async (_req, res) => {

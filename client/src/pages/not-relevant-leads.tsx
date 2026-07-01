@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CircleSlash, Search, RotateCcw, Eye, MessageCircle } from "lucide-react";
+import { CircleSlash, Search, RotateCcw, Eye, MessageCircle, CalendarClock } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Client } from "@shared/schema";
@@ -74,6 +74,16 @@ export default function NotRelevantLeads() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/clients"] });
       toast({ title: "הליד הוחזר לרשימה הראשית" });
+    },
+  });
+
+  const nextYearMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("PATCH", `/api/clients/${id}`, { contactStatus: "next_year" });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "הליד הועבר ללידים לשנה הבאה" });
     },
   });
 
@@ -196,6 +206,20 @@ export default function NotRelevantLeads() {
                           title="החזר ללקוחות"
                         >
                           <RotateCcw className="w-3.5 h-3.5 text-green-600" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            if (confirm(`להעביר את ${c.fullName} ללידים לשנה הבאה?`)) {
+                              nextYearMutation.mutate(c.id);
+                            }
+                          }}
+                          disabled={nextYearMutation.isPending}
+                          title="העבר לשנה הבאה"
+                        >
+                          <CalendarClock className="w-3.5 h-3.5 text-blue-600" />
                         </Button>
                       </div>
                     </TableCell>

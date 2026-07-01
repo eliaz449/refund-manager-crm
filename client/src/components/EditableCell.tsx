@@ -25,6 +25,8 @@ interface Props {
   dir?: "ltr" | "rtl" | "auto";
   // Min width hint for cell content
   minWidth?: number;
+  // Make display text bold (e.g. when value === "הוגש")
+  bold?: boolean;
 }
 
 export function EditableCell({
@@ -39,6 +41,7 @@ export function EditableCell({
   align = "right",
   dir = "auto",
   minWidth,
+  bold,
 }: Props) {
   const qc = useQueryClient();
   const [local, setLocal] = useState<string>(value ?? "");
@@ -139,7 +142,7 @@ export function EditableCell({
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className={`block w-full px-1 py-0.5 text-xs rounded hover:bg-muted/60 transition-colors min-h-[20px] ${alignClass} ${value ? "" : "text-muted-foreground"}`}
+          className={`block w-full px-1 py-0.5 text-xs rounded hover:bg-muted/60 transition-colors min-h-[20px] ${alignClass} ${value ? "" : "text-muted-foreground"} ${bold ? "font-bold" : ""}`}
           dir={inputDir}
           style={minWidth ? { minWidth: `${minWidth}px` } : undefined}
           data-testid={`cell-${field}-${clientId}`}

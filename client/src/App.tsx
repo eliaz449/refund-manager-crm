@@ -18,6 +18,7 @@ import WebhookEvents from "@/pages/webhook-events";
 import LoginPage from "@/pages/login";
 import PartnerDashboard from "@/pages/partner-dashboard";
 import PartnersPage from "@/pages/partners";
+import DeletedClients from "@/pages/deleted-clients";
 import { Loader2 } from "lucide-react";
 import { ReminderNotifications } from "@/hooks/use-reminder-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/clients/:id" component={ClientDetail} />
       <Route path="/next-year-leads" component={NextYearLeads} />
       <Route path="/not-relevant-leads" component={NotRelevantLeads} />
+      <Route path="/deleted-clients" component={DeletedClients} />
       <Route path="/cases"><Redirect to="/clients" /></Route>
       <Route path="/tasks"><Redirect to="/clients" /></Route>
       <Route path="/payments"><Redirect to="/clients" /></Route>

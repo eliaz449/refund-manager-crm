@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,9 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarClock, Search, Eye, Phone, MessageCircle } from "lucide-react";
+import { CalendarClock, Search, Eye, Phone, MessageCircle, RotateCcw } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Client } from "@shared/schema";
 
 function formatCurrency(value: number): string {
@@ -38,13 +40,25 @@ function PhoneLink({ phone }: { phone: string }) {
 export default function NextYearLeads() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
+  const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data: clients, isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
 
-  // Only clients with receiptDate filled
+  // Clients with receiptDate filled OR manually marked as next_year
   const eligibleClients = useMemo(() => {
-    return (clients || []).filter(c => !!c.receiptDate);
+    return (clients || []).filter(c => !!c.receiptDate || c.contactStatus === "next_year");
   }, [clients]);
+
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("PATCH", `/api/clients/${id}`, { contactStatus: "new" });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "הליד הוחזר לרשימה הראשית" });
+    },
+  });
 
   const filtered = useMemo(() => {
     if (!search.trim()) return eligibleClients;
@@ -137,6 +151,7 @@ export default function NextYearLeads() {
                       <TableHead className="text-right px-2">שם</TableHead>
                       <TableHead className="text-right px-2">טלפון</TableHead>
                       <TableHead className="text-right px-2">סטטוס</TableHead>
+                      <TableHead className="text-right px-2">סוג</TableHead>
                       <TableHead className="text-right px-2">סכום החזר</TableHead>
                       <TableHead className="text-right px-2">עמלה</TableHead>
                       <TableHead className="text-right px-2">תאריך תקבול</TableHead>
@@ -160,6 +175,11 @@ export default function NextYearLeads() {
                             ? <span className="truncate block max-w-[140px]" title={c.customStatus}>{c.customStatus}</span>
                             : <span className="text-muted-foreground">—</span>}
                         </TableCell>
+                        <TableCell className="px-2">
+                          {c.contactStatus === "next_year" && !c.receiptDate
+                            ? <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700">הועבר ידנית</span>
+                            : <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">תקבול</span>}
+                        </TableCell>
                         <TableCell className="px-2 whitespace-nowrap text-green-700 font-medium">
                           {c.refundEstimateAmount ? formatCurrency(parseFloat(c.refundEstimateAmount)) : "—"}
                         </TableCell>
@@ -170,15 +190,33 @@ export default function NextYearLeads() {
                           {c.receiptDate ? new Date(c.receiptDate).toLocaleDateString("he-IL") : "—"}
                         </TableCell>
                         <TableCell className="px-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6"
-                            onClick={() => setLocation(`/clients/${c.id}`)}
-                            title="פתח לקוח"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              onClick={() => setLocation(`/clients/${c.id}`)}
+                              title="פתח לקוח"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            {c.contactStatus === "next_year" && !c.receiptDate && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                onClick={() => {
+                                  if (confirm(`להחזיר את ${c.fullName} לרשימה הראשית?`)) {
+                                    restoreMutation.mutate(c.id);
+                                  }
+                                }}
+                                disabled={restoreMutation.isPending}
+                                title="החזר לרשימה הראשית"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-green-600" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

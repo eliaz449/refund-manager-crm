@@ -26,7 +26,7 @@ export const pricingTypeEnum = pgEnum("pricing_type", ["percentage", "fixed", "h
 export const contactStatusEnum = pgEnum("contact_status", [
   "new", "no_answer_1", "no_answer_2", "no_answer_3", "no_answer_4", "no_answer_5", "no_answer_6",
   "talked", "sent_documents", "in_process", "closed", "not_relevant",
-  "not_interested", "wrong_info"
+  "not_interested", "wrong_info", "next_year"
 ]);
 export const refundStageEnum = pgEnum("refund_stage", [
   "details_received", "waiting_documents", "document_review",
@@ -92,6 +92,10 @@ export const clients = pgTable("clients", {
   pensionYearsChecked: text("pension_years_checked"),
   // Reason text when contactStatus = not_relevant (free text from a dialog)
   notRelevantReason: text("not_relevant_reason"),
+  // Soft delete — set when client is "deleted", null = active
+  deletedAt: timestamp("deleted_at"),
+  // Year notes: JSON {"2021": "הוגש", "2022": "..."} — 6 years per client
+  yearNotes: text("year_notes"),
   address: text("address"),
   status: clientStatusEnum("status").notNull().default("lead"),
   clientProcessStatus: clientProcessStatusEnum("client_process_status").default("lead"),
@@ -313,7 +317,7 @@ export type PartnerLeadActivity = typeof partnerLeadActivities.$inferSelect;
 // ────────────────────────────────────────────────────────────────
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
-export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true });

@@ -1,4 +1,4 @@
-import { eq, desc, sql, and, or, count } from "drizzle-orm";
+import { eq, desc, sql, and, or, count, isNull, isNotNull } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents, reminders,
@@ -29,11 +29,13 @@ export interface IStorage {
   getUsers(): Promise<User[]>;
 
   getClients(): Promise<Client[]>;
+  getDeletedClients(): Promise<Client[]>;
   getClient(id: string): Promise<Client | undefined>;
   findClientByPhoneOrEmail(phone?: string, email?: string): Promise<Client | undefined>;
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: string, client: Partial<InsertClient>): Promise<Client | undefined>;
   deleteClient(id: string): Promise<void>;
+  restoreClient(id: string): Promise<Client | undefined>;
 
   getCases(): Promise<Case[]>;
   getCase(id: string): Promise<Case | undefined>;
@@ -150,7 +152,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClients(): Promise<Client[]> {
-    return db.select().from(clients).orderBy(desc(clients.createdAt));
+    return db.select().from(clients)
+      .where(isNull(clients.deletedAt))
+      .orderBy(desc(clients.createdAt));
+  }
+
+  async getDeletedClients(): Promise<Client[]> {
+    return db.select().from(clients)
+      .where(isNotNull(clients.deletedAt))
+      .orderBy(desc(clients.deletedAt));
   }
 
   async getClient(id: string): Promise<Client | undefined> {
@@ -159,11 +169,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async findClientByPhoneOrEmail(phone?: string, email?: string): Promise<Client | undefined> {
-    const conditions = [];
-    if (phone) conditions.push(eq(clients.phone, phone));
-    if (email) conditions.push(eq(clients.email, email));
-    if (conditions.length === 0) return undefined;
-    const [client] = await db.select().from(clients).where(or(...conditions)).limit(1);
+    if (!phone && !email) return undefined;
+    const matchConditions = [];
+    if (phone) matchConditions.push(eq(clients.phone, phone));
+    if (email) matchConditions.push(eq(clients.email, email));
+    const [client] = await db.select().from(clients)
+      .where(and(isNull(clients.deletedAt), or(...matchConditions)))
+      .limit(1);
     return client;
   }
 
@@ -173,12 +185,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateClient(id: string, client: Partial<InsertClient>): Promise<Client | undefined> {
-    const [updated] = await db.update(clients).set({ ...client, updatedAt: new Date() }).where(eq(clients.id, id)).returning();
+    const [updated] = await db.update(clients)
+      .set({ ...client, updatedAt: new Date() })
+      .where(and(eq(clients.id, id), isNull(clients.deletedAt)))
+      .returning();
     return updated;
   }
 
   async deleteClient(id: string): Promise<void> {
-    await db.delete(clients).where(eq(clients.id, id));
+    await db.update(clients)
+      .set({ deletedAt: new Date() } as any)
+      .where(eq(clients.id, id));
+  }
+
+  async restoreClient(id: string): Promise<Client | undefined> {
+    const [restored] = await db.update(clients)
+      .set({ deletedAt: null, updatedAt: new Date() } as any)
+      .where(eq(clients.id, id))
+      .returning();
+    return restored;
   }
 
   async getCases(): Promise<Case[]> {
@@ -386,8 +411,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardStats() {
-    const [leadCount] = await db.select({ count: count() }).from(clients).where(eq(clients.status, "lead"));
-    const [activeCount] = await db.select({ count: count() }).from(clients).where(eq(clients.status, "active"));
+    const [leadCount] = await db.select({ count: count() }).from(clients).where(and(eq(clients.status, "lead"), isNull(clients.deletedAt)));
+    const [activeCount] = await db.select({ count: count() }).from(clients).where(and(eq(clients.status, "active"), isNull(clients.deletedAt)));
     const [openCaseCount] = await db.select({ count: count() }).from(cases).where(
       and(
         sql`${cases.status} NOT IN ('completed', 'cancelled')`

@@ -1,9 +1,10 @@
-import { useState, useMemo, Fragment } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useMemo, Fragment, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock,
-  Bell, BellOff, ChevronDown, ChevronUp, Calendar, Handshake, Loader2
+  Bell, BellOff, ChevronDown, ChevronUp, Calendar, Handshake, Loader2,
+  ChevronLeft, ChevronRight, Check
 } from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -407,6 +408,78 @@ function ReminderIndicator({ reminder }: { reminder: Reminder | undefined }) {
   );
 }
 
+// ── Year Note Cell ────────────────────────────────────────────────
+function YearNoteCell({ clientId, year, notes }: { clientId: string; year: number; notes: Record<string, string> }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [local, setLocal] = useState(notes[String(year)] ?? "");
+  const [justSaved, setJustSaved] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // sync when external data changes
+  useMemo(() => { if (!editing) setLocal(notes[String(year)] ?? ""); }, [notes, year, editing]);
+
+  const mutation = useMutation({
+    mutationFn: async (value: string) => {
+      const updated = { ...notes };
+      if (value === "") delete updated[String(year)];
+      else updated[String(year)] = value;
+      await apiRequest("PATCH", `/api/clients/${clientId}`, { yearNotes: JSON.stringify(updated) });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/clients"] });
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 1200);
+    },
+    onError: () => toast({ title: "שגיאה בשמירה", variant: "destructive" }),
+  });
+
+  function commit() {
+    setEditing(false);
+    const cleaned = local.trim();
+    if (cleaned === (notes[String(year)] ?? "")) return;
+    mutation.mutate(cleaned);
+  }
+
+  const displayValue = notes[String(year)] ?? "";
+  const isBold = displayValue === "הוגש";
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          value={local}
+          autoFocus
+          onChange={(e) => setLocal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); }
+            if (e.key === "Escape") { setLocal(notes[String(year)] ?? ""); setEditing(false); }
+          }}
+          className="bg-white border border-blue-300 px-1 py-0.5 text-xs w-full rounded focus:outline-none focus:ring-1 focus:ring-blue-400 text-right"
+          style={{ minWidth: 72 }}
+          dir="rtl"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className={`block w-full px-1 py-0.5 text-xs rounded hover:bg-muted/60 transition-colors min-h-[20px] text-right ${displayValue ? "" : "text-muted-foreground"} ${isBold ? "font-bold" : ""}`}
+          style={{ minWidth: 72 }}
+          dir="rtl"
+        >
+          {displayValue || "—"}
+        </button>
+      )}
+      {mutation.isPending && <Loader2 className="w-3 h-3 animate-spin absolute -left-4 top-1/2 -translate-y-1/2 text-blue-600" />}
+      {justSaved && !mutation.isPending && <Check className="w-3 h-3 absolute -left-4 top-1/2 -translate-y-1/2 text-green-600" />}
+    </div>
+  );
+}
+
 export default function Clients() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -416,8 +489,12 @@ export default function Clients() {
   const [shareClient, setShareClient] = useState<Client | null>(null);
   const [notRelevantClient, setNotRelevantClient] = useState<Client | null>(null);
   const [expandedCriteria, setExpandedCriteria] = useState<Set<string>>(new Set());
+  const [yearOffset, setYearOffset] = useState(0); // 0 = current year as last column
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const currentYear = new Date().getFullYear();
+  const visibleYears = Array.from({ length: 6 }, (_, i) => currentYear - yearOffset - 5 + i);
 
   const { data: clients, isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: allReminders = [] } = useQuery<Reminder[]>({ queryKey: ["/api/reminders"], refetchInterval: 60000 });
@@ -471,10 +548,10 @@ export default function Clients() {
   });
 
   const filtered = useMemo(() => {
-    // Hide clients that landed in "next year" (receipt date filled)
+    // Hide clients that landed in "next year" (receipt date filled, or next_year status)
     // or in "not relevant" (3 contact statuses). Keeps the main list focused
     // on leads to actively work on.
-    const HIDDEN_CONTACT_STATUSES = ["not_relevant", "not_interested", "wrong_info"];
+    const HIDDEN_CONTACT_STATUSES = ["not_relevant", "not_interested", "wrong_info", "next_year"];
     return (clients || []).filter(c => {
       if (c.receiptDate) return false;
       if (c.contactStatus && HIDDEN_CONTACT_STATUSES.includes(c.contactStatus)) return false;
@@ -744,6 +821,20 @@ export default function Clients() {
           {/* ── Desktop table ── */}
           <Card className="hidden md:block">
             <CardContent className="p-0 overflow-x-auto">
+              {/* Year range navigation */}
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-muted/30 justify-start" dir="rtl">
+                <span className="text-xs text-muted-foreground">שנות מס:</span>
+                <span className="text-xs font-medium">{visibleYears[0]}–{visibleYears[5]}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setYearOffset(y => y + 1)} title="שנים קודמות">
+                  <ChevronRight className="w-3 h-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => setYearOffset(y => Math.max(0, y - 1))} title="שנים חדשות יותר" disabled={yearOffset === 0}>
+                  <ChevronLeft className="w-3 h-3" />
+                </Button>
+                {yearOffset > 0 && (
+                  <Button size="sm" variant="ghost" className="h-5 text-xs px-1.5" onClick={() => setYearOffset(0)}>חזור להיום</Button>
+                )}
+              </div>
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
@@ -757,6 +848,9 @@ export default function Clients() {
                     <TableHead className="text-right w-[90px] px-2">עמלה</TableHead>
                     <TableHead className="text-right w-[100px] px-2">תאריך תקבול</TableHead>
                     <TableHead className="text-right w-[110px] px-2">פעולה</TableHead>
+                    {visibleYears.map(y => (
+                      <TableHead key={y} className="text-center w-[80px] px-1 text-xs font-semibold">{y}</TableHead>
+                    ))}
                     <TableHead className="w-[70px] px-2"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -806,6 +900,7 @@ export default function Clients() {
                             value={client.customStatus}
                             type="text"
                             placeholder="סטטוס"
+                            bold={client.customStatus === "הוגש"}
                           />
                         </TableCell>
                         <TableCell className="px-2 align-middle">
@@ -873,6 +968,20 @@ export default function Clients() {
                             onOpenNotRelevant={() => setNotRelevantClient(client)}
                           />
                         </TableCell>
+                        {(() => {
+                          let parsedNotes: Record<string, string> = {};
+                          try { parsedNotes = client.yearNotes ? JSON.parse(client.yearNotes) : {}; } catch {}
+                          const clientYear = client.createdAt ? new Date(client.createdAt).getFullYear() : currentYear;
+                          return visibleYears.map(y => (
+                            <TableCell key={y} className="px-1 align-middle">
+                              {y <= clientYear ? (
+                                <YearNoteCell clientId={client.id} year={y} notes={parsedNotes} />
+                              ) : (
+                                <span className="text-muted-foreground/30 text-xs block text-center">—</span>
+                              )}
+                            </TableCell>
+                          ));
+                        })()}
                         <TableCell className="px-2 align-middle" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
