@@ -9,6 +9,33 @@ import { sendCallMeBot, formatNewLeadMessage, formatReminderMessage, isLeadAlrea
 import multer from "multer";
 import { uploadDocument, createSignedUrl, deleteDocument as deleteFromStorage, isStorageConfigured } from "./supabaseStorage";
 
+async function notifyGmailAgentLeadCreated(client: any) {
+  const url = process.env.GMAIL_AGENT_WEBHOOK_URL;
+  const secret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
+  if (!url || !secret) {
+    console.log("[GmailAgent] GMAIL_AGENT_WEBHOOK_URL/SECRET not configured — skipping");
+    return;
+  }
+  const payload = JSON.stringify({
+    event: "lead_created",
+    client: {
+      id: client.id,
+      fullName: client.fullName,
+      phone: client.phone,
+      email: client.email,
+      source: client.source,
+      createdAt: client.createdAt,
+    },
+  });
+  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const res = await fetch(`${url}/webhook/refund-lead`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
+    body: payload,
+  });
+  console.log(`[GmailAgent] Lead push status=${res.status}`);
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
@@ -75,6 +102,7 @@ export async function registerRoutes(
           createdAt: client.createdAt ?? new Date(),
         });
         sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
+        notifyGmailAgentLeadCreated(client).catch(err => console.error("[GmailAgent:Lead] ❌ Error:", err));
       }
     } else {
       console.log(`[WhatsApp:Lead] Status='${client.status}' — no WA (only sent for 'lead')`);
