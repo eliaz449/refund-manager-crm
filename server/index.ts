@@ -265,9 +265,41 @@ app.use((req, res, next) => {
             clientName: client?.fullName ?? "לקוח לא ידוע",
             reminderAt: reminder.reminderAt,
           });
-          await sendCallMeBot(msg);
+
+          // Push through Gmail Agent bot (WhatsApp) if configured, else fall back to CallMeBot.
+          const gaUrl = process.env.GMAIL_AGENT_WEBHOOK_URL;
+          const gaSecret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
+          let delivered = false;
+          if (gaUrl && gaSecret) {
+            try {
+              const crypto = await import("crypto");
+              const payload = JSON.stringify({
+                event: "reminder_due",
+                reminder: {
+                  id: reminder.id,
+                  client_id: reminder.clientId,
+                  content: reminder.content,
+                  reminder_at: reminder.reminderAt,
+                },
+                client: client ? { id: client.id, fullName: client.fullName, phone: client.phone } : null,
+                text: msg,
+              });
+              const signature = crypto.createHmac("sha256", gaSecret).update(payload).digest("hex");
+              const res = await fetch(`${gaUrl}/webhook/refund-lead`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
+                body: payload,
+              });
+              if (res.ok) delivered = true;
+            } catch (err: any) {
+              console.error("[GmailAgent] reminder push failed:", err.message);
+            }
+          }
+          if (!delivered) {
+            await sendCallMeBot(msg);
+          }
           await storage.markReminderWhatsappNotified(reminder.id);
-          console.log(`[WhatsApp] Reminder ${reminder.id} → ✅ sent`);
+          console.log(`[WhatsApp] Reminder ${reminder.id} → ${delivered ? "✅ via Gmail Agent" : "✅ via CallMeBot"}`);
         } catch (err: any) {
           console.error(`[WhatsApp] Reminder ${reminder.id} error:`, err.message);
         }
