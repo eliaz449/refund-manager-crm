@@ -494,7 +494,8 @@ export default function Clients() {
   const { toast } = useToast();
 
   const currentYear = new Date().getFullYear();
-  const visibleYears = Array.from({ length: 6 }, (_, i) => currentYear - yearOffset - 5 + i);
+  // Tax years: up to last year (e.g., opened in 2026 → years 2020–2025)
+  const visibleYears = Array.from({ length: 6 }, (_, i) => (currentYear - 1) - yearOffset - 5 + i);
 
   const { data: clients, isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: allReminders = [] } = useQuery<Reminder[]>({ queryKey: ["/api/reminders"], refetchInterval: 60000 });
@@ -918,6 +919,16 @@ export default function Clients() {
                               { value: "other", label: "אחר" },
                             ]}
                           />
+                          {(client.source === "recommended" || client.source === "referral") && (
+                            <EditableCell
+                              clientId={client.id}
+                              field="recommendedBy"
+                              value={client.recommendedBy}
+                              type="text"
+                              placeholder="שם הממליץ"
+                              minWidth={90}
+                            />
+                          )}
                         </TableCell>
                         <TableCell className="px-2 align-middle">
                           <EditableCell
@@ -974,7 +985,7 @@ export default function Clients() {
                           const clientYear = client.createdAt ? new Date(client.createdAt).getFullYear() : currentYear;
                           return visibleYears.map(y => (
                             <TableCell key={y} className="px-1 align-middle">
-                              {y <= clientYear ? (
+                              {y < clientYear ? (
                                 <YearNoteCell clientId={client.id} year={y} notes={parsedNotes} />
                               ) : (
                                 <span className="text-muted-foreground/30 text-xs block text-center">—</span>
