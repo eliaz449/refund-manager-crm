@@ -227,10 +227,23 @@ function checkBotToken(req: Request): boolean {
   if (!expected) return false;
   const provided = req.headers["x-bot-token"] as string | undefined;
   if (!provided || provided !== expected) return false;
-  (req as any).user = {
-    id: "bot",
+
+  // Optional X-Bot-User header tells us which real user is behind this bot call.
+  // Format: "eden" | "eliezer" | free-form name. Defaults to generic bot.
+  const botUser = (req.headers["x-bot-user"] as string | undefined)?.toLowerCase();
+  const nameMap: Record<string, { fullName: string; email: string }> = {
+    eden: { fullName: "עדן אסולין (דרך הבוט)", email: "eden@ea-assets.com" },
+    eliezer: { fullName: "אליעז אסולין (דרך הבוט)", email: "office@ea-assets.com" },
+  };
+  const identity = (botUser && nameMap[botUser]) || {
     fullName: "Gmail Agent Bot",
     email: "bot@ea-assets.com",
+  };
+
+  (req as any).user = {
+    id: "bot",
+    fullName: identity.fullName,
+    email: identity.email,
     role: "admin",
   };
   return true;
