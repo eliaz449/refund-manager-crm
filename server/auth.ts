@@ -220,7 +220,24 @@ export function setupAuth(app: Express) {
   });
 }
 
+// Bot API token bypass — lets the Gmail Agent (WhatsApp bot) call any auth-gated
+// endpoint by sending X-Bot-Token. Fakes an admin user so downstream logic works.
+function checkBotToken(req: Request): boolean {
+  const expected = process.env.BOT_API_TOKEN;
+  if (!expected) return false;
+  const provided = req.headers["x-bot-token"] as string | undefined;
+  if (!provided || provided !== expected) return false;
+  (req as any).user = {
+    id: "bot",
+    fullName: "Gmail Agent Bot",
+    email: "bot@ea-assets.com",
+    role: "admin",
+  };
+  return true;
+}
+
 export function requireAuth(req: Request, res: any, next: any) {
+  if (checkBotToken(req)) return next();
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "לא מחובר" });
   }
@@ -229,6 +246,7 @@ export function requireAuth(req: Request, res: any, next: any) {
 
 // Owner routes (admin/user/accountant) — explicitly block partners
 export function requireOwner(req: Request, res: any, next: any) {
+  if (checkBotToken(req)) return next();
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "לא מחובר" });
   }
