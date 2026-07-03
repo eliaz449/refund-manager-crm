@@ -535,6 +535,110 @@ export async function registerRoutes(
     }
   };
 
+  // Weekly business intelligence for the bot's Saturday meeting
+  app.get("/api/bot/weekly-business", requireAuth, async (_req, res) => {
+    try {
+      const now = Date.now();
+      const weekAgo = new Date(now - 7 * 86400_000);
+      const [allClients, allPayments] = await Promise.all([
+        storage.getClients(),
+        storage.getPayments(),
+      ]);
+
+      const inWindow = (date: any) => date && new Date(date).getTime() >= weekAgo.getTime();
+
+      const newLeadsThisWeek = allClients.filter(c => inWindow(c.createdAt));
+      const closedThisWeek = allClients.filter(c => c.leadStatus === "closed_deal" && inWindow(c.updatedAt));
+      const notRelevantThisWeek = allClients.filter(c =>
+        (c.leadStatus === "not_relevant" || c.contactStatus === "not_relevant" || c.contactStatus === "not_interested" || c.contactStatus === "wrong_info")
+        && inWindow(c.updatedAt),
+      );
+      const notClosedButActiveWeek = allClients.filter(c =>
+        c.status === "lead" && !inWindow(c.updatedAt || c.createdAt) === false && c.leadStatus !== "closed_deal"
+      );
+
+      const paymentsThisWeek = allPayments.filter(p => p.status === "paid" && inWindow(p.paymentDate));
+
+      // Response-time analytics: first note = first outreach
+      const responseTimes: any[] = [];
+      const responseTimesTargets = allClients.filter(c => inWindow(c.createdAt)).slice(0, 40);
+      for (const c of responseTimesTargets) {
+        try {
+          const notes = await storage.getClientNotes(c.id);
+          if (notes.length === 0) {
+            responseTimes.push({ clientId: c.id, name: c.fullName, source: c.source, createdAt: c.createdAt, firstResponseAt: null, hoursToRespond: null });
+            continue;
+          }
+          const earliest = notes.reduce((min, n) => new Date(n.createdAt as any).getTime() < new Date(min.createdAt as any).getTime() ? n : min);
+          const hours = (new Date(earliest.createdAt as any).getTime() - new Date(c.createdAt as any).getTime()) / 3600_000;
+          responseTimes.push({ clientId: c.id, name: c.fullName, source: c.source, createdAt: c.createdAt, firstResponseAt: earliest.createdAt, hoursToRespond: Math.round(hours * 10) / 10 });
+        } catch {}
+      }
+
+      // For each closed / not_relevant client, pull recent notes to understand "why"
+      const withReasons = async (list: any[], limit = 15) => {
+        const out: any[] = [];
+        for (const c of list.slice(0, limit)) {
+          try {
+            const notes = await storage.getClientNotes(c.id);
+            const recentNotes = notes.slice(0, 3).map(n => ({ content: n.content, createdAt: n.createdAt }));
+            out.push({
+              id: c.id, name: c.fullName, phone: c.phone, source: c.source,
+              status: c.status, leadStatus: c.leadStatus, contactStatus: c.contactStatus,
+              createdAt: c.createdAt, updatedAt: c.updatedAt,
+              recentNotes,
+            });
+          } catch {}
+        }
+        return out;
+      };
+
+      const paymentsEnriched: any[] = [];
+      for (const p of paymentsThisWeek.slice(0, 40)) {
+        const c = allClients.find(x => x.id === p.clientId);
+        paymentsEnriched.push({
+          amount: Number(p.amount),
+          currency: p.currency,
+          paymentDate: p.paymentDate,
+          method: p.paymentMethod,
+          clientName: c?.fullName,
+          clientSource: c?.source,
+          clientCreatedAt: c?.createdAt,
+          daysFromLeadToPayment: c?.createdAt ? Math.round((new Date(p.paymentDate as any).getTime() - new Date(c.createdAt as any).getTime()) / 86400_000) : null,
+        });
+      }
+
+      res.json({
+        window: { from: weekAgo.toISOString(), to: new Date(now).toISOString() },
+        summary: {
+          newLeads: newLeadsThisWeek.length,
+          closedDeals: closedThisWeek.length,
+          notRelevant: notRelevantThisWeek.length,
+          paymentsCount: paymentsThisWeek.length,
+          totalPaid: paymentsThisWeek.reduce((s, p) => s + Number(p.amount || 0), 0),
+        },
+        closedDeals: await withReasons(closedThisWeek),
+        notRelevant: await withReasons(notRelevantThisWeek),
+        payments: paymentsEnriched,
+        responseTimes,
+        sourceBreakdown: {
+          newLeads: countBy(newLeadsThisWeek, c => c.source || "unknown"),
+          closed: countBy(closedThisWeek, c => c.source || "unknown"),
+          payments: countBy(paymentsThisWeek, p => allClients.find(c => c.id === p.clientId)?.source || "unknown"),
+        },
+      });
+    } catch (err: any) {
+      console.error("[bot/weekly-business] error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  function countBy<T>(arr: T[], keyFn: (x: T) => string): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const x of arr) { const k = keyFn(x); out[k] = (out[k] ?? 0) + 1; }
+    return out;
+  }
+
   // Primary endpoint for new landing pages
   app.post("/api/webhooks/lead", leadWebhookHandler);
   // Legacy alias — kept so existing senders (old Landy integration) keep working
