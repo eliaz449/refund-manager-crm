@@ -523,6 +523,7 @@ export async function registerRoutes(
           createdAt: newClient.createdAt ?? new Date(),
         });
         sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
+        notifyGmailAgentLeadCreated(newClient).catch(err => console.error("[GmailAgent:Lead] ❌ Error:", err));
       }
       return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
 
