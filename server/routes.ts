@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth, requireOwner, requirePartner } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema, insertPartnerLeadSchema } from "@shared/schema";
-import { sendCallMeBot, formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
+import { formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
 import multer from "multer";
 import { uploadDocument, createSignedUrl, deleteDocument as deleteFromStorage, isStorageConfigured } from "./supabaseStorage";
 
@@ -101,7 +101,6 @@ export async function registerRoutes(
           source: client.source ?? "other",
           createdAt: client.createdAt ?? new Date(),
         });
-        sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
         notifyGmailAgentLeadCreated(client).catch(err => console.error("[GmailAgent:Lead] ❌ Error:", err));
       }
     } else {
@@ -522,7 +521,6 @@ export async function registerRoutes(
           source: source,
           createdAt: newClient.createdAt ?? new Date(),
         });
-        sendCallMeBot(msg).catch(err => console.error("[WhatsApp:Lead] ❌ Error:", err));
         notifyGmailAgentLeadCreated(newClient).catch(err => console.error("[GmailAgent:Lead] ❌ Error:", err));
       }
       return res.status(200).json({ success: true, action: "created", clientId: newClient.id, receivedAt });
@@ -963,21 +961,26 @@ export async function registerRoutes(
   });
   // ────────────────────────────────────────────────────────────────
 
-  // ─── WhatsApp Test Endpoint ──────────────────────────────────────
+  // ─── WhatsApp Test Endpoint (via Gmail Agent) ────────────────────
   app.post("/api/test-whatsapp", requireAuth, async (req, res) => {
-    const phone  = process.env.CALLMEBOT_PHONE?.trim();
-    const apikey = process.env.CALLMEBOT_APIKEY?.trim();
-    if (!phone || !apikey) {
-      return res.status(400).json({ success: false, error: "CALLMEBOT_PHONE or CALLMEBOT_APIKEY not configured." });
+    const gaUrl = process.env.GMAIL_AGENT_WEBHOOK_URL;
+    const gaSecret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
+    if (!gaUrl || !gaSecret) {
+      return res.status(400).json({ success: false, error: "GMAIL_AGENT_WEBHOOK_URL or GMAIL_AGENT_WEBHOOK_SECRET not configured." });
     }
-    const message = [
-      "✅ בדיקת חיבור WhatsApp — TaxPro CRM",
-      `זמן: ${new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
-      "המערכת מחוברת ועובדת!",
-    ].join("\n");
     try {
-      await sendCallMeBot(message);
-      res.json({ success: true });
+      const crypto = await import("crypto");
+      const payload = JSON.stringify({
+        event: "test",
+        text: `✅ בדיקת חיבור Gmail Agent — TaxPro CRM\nזמן: ${new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" })}`,
+      });
+      const signature = crypto.createHmac("sha256", gaSecret).update(payload).digest("hex");
+      const response = await fetch(`${gaUrl}/webhook/refund-lead`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
+        body: payload,
+      });
+      res.json({ success: response.ok });
     } catch (err: any) {
       res.json({ success: false, error: err.message });
     }

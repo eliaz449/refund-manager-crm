@@ -1,10 +1,7 @@
 /**
- * WhatsApp notification helper — CallMeBot only.
- *
- * API: https://api.callmebot.com/whatsapp.php?phone=PHONE&text=TEXT&apikey=KEY
- * Config (env vars):
- *   CALLMEBOT_PHONE   — phone in international format, no + (e.g. 972501234567)
- *   CALLMEBOT_APIKEY  — API key from CallMeBot activation message
+ * WhatsApp notification helper — Gmail Agent bot (Twilio WhatsApp) only.
+ * CallMeBot removed 2026-07. All notifications flow via HMAC-signed webhook to
+ * GMAIL_AGENT_WEBHOOK_URL.
  */
 
 // ─── In-memory dedup guard ────────────────────────────────────────────────
@@ -14,9 +11,9 @@ const DEDUP_TTL_MS = 5 * 60 * 1000;
 export function markLeadNotified(clientId: string): void {
   _sentLeadIds.set(clientId, Date.now());
   const cutoff = Date.now() - DEDUP_TTL_MS;
-  for (const [id, ts] of _sentLeadIds.entries()) {
+  _sentLeadIds.forEach((ts, id) => {
     if (ts < cutoff) _sentLeadIds.delete(id);
-  }
+  });
 }
 
 export function isLeadAlreadyNotified(clientId: string): boolean {
@@ -34,38 +31,13 @@ export function isLeadAlreadyNotified(clientId: string): boolean {
  * Print WhatsApp config to server log on startup.
  */
 export function logWhatsAppConfig(): void {
-  const phone  = process.env.CALLMEBOT_PHONE?.trim();
-  const apikey = process.env.CALLMEBOT_APIKEY?.trim();
-
+  const gaUrl = process.env.GMAIL_AGENT_WEBHOOK_URL?.trim();
+  const gaSecret = process.env.GMAIL_AGENT_WEBHOOK_SECRET?.trim();
   console.log("[WhatsApp:Config] ─────────────────────────────────────────");
-  console.log(`[WhatsApp:Config] Provider               : CallMeBot`);
-  console.log(`[WhatsApp:Config] CALLMEBOT_PHONE        : ${phone ? `"${phone}"` : "❌ NOT SET"}`);
-  console.log(`[WhatsApp:Config] CALLMEBOT_APIKEY       : ${apikey ? `SET (${apikey.length} chars)` : "❌ NOT SET"}`);
+  console.log(`[WhatsApp:Config] Provider          : Gmail Agent (Twilio WhatsApp)`);
+  console.log(`[WhatsApp:Config] GMAIL_AGENT_URL   : ${gaUrl ? gaUrl : "❌ NOT SET"}`);
+  console.log(`[WhatsApp:Config] GMAIL_AGENT_SECRET: ${gaSecret ? `SET (${gaSecret.length} chars)` : "❌ NOT SET"}`);
   console.log("[WhatsApp:Config] ─────────────────────────────────────────");
-}
-
-/**
- * Send a WhatsApp message via CallMeBot.
- */
-export async function sendCallMeBot(message: string): Promise<void> {
-  const phone  = process.env.CALLMEBOT_PHONE?.trim();
-  const apikey = process.env.CALLMEBOT_APIKEY?.trim();
-  if (!phone || !apikey) {
-    console.warn("[CallMeBot] ⚠️  CALLMEBOT_PHONE or CALLMEBOT_APIKEY not set — skipping");
-    return;
-  }
-  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(message)}&apikey=${apikey}`;
-  try {
-    const res = await fetch(url);
-    if (res.ok) {
-      console.log(`[CallMeBot] ✅ Sent to ${phone} — HTTP ${res.status}`);
-    } else {
-      const body = await res.text().catch(() => "");
-      console.error(`[CallMeBot] ❌ HTTP ${res.status} — ${body.substring(0, 200)}`);
-    }
-  } catch (err: any) {
-    console.error(`[CallMeBot] ❌ Network error: ${err.message}`);
-  }
 }
 
 /** Format a new-lead WhatsApp message */

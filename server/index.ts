@@ -5,7 +5,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { sendCallMeBot, formatReminderMessage, logWhatsAppConfig } from "./whatsapp";
+import { formatReminderMessage, logWhatsAppConfig } from "./whatsapp";
 import { sendReminderEmail, isEmailConfigured } from "./email";
 
 const app = express();
@@ -266,40 +266,37 @@ app.use((req, res, next) => {
             reminderAt: reminder.reminderAt,
           });
 
-          // Push through Gmail Agent bot (WhatsApp) if configured, else fall back to CallMeBot.
+          // Push through Gmail Agent bot (WhatsApp) - only path
           const gaUrl = process.env.GMAIL_AGENT_WEBHOOK_URL;
           const gaSecret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
-          let delivered = false;
-          if (gaUrl && gaSecret) {
-            try {
-              const crypto = await import("crypto");
-              const payload = JSON.stringify({
-                event: "reminder_due",
-                reminder: {
-                  id: reminder.id,
-                  client_id: reminder.clientId,
-                  content: reminder.content,
-                  reminder_at: reminder.reminderAt,
-                },
-                client: client ? { id: client.id, fullName: client.fullName, phone: client.phone } : null,
-                text: msg,
-              });
-              const signature = crypto.createHmac("sha256", gaSecret).update(payload).digest("hex");
-              const res = await fetch(`${gaUrl}/webhook/refund-lead`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
-                body: payload,
-              });
-              if (res.ok) delivered = true;
-            } catch (err: any) {
-              console.error("[GmailAgent] reminder push failed:", err.message);
-            }
+          if (!gaUrl || !gaSecret) {
+            console.error(`[Reminder] ${reminder.id} — GMAIL_AGENT_WEBHOOK_URL/SECRET not set, skipping`);
+            continue;
           }
-          if (!delivered) {
-            await sendCallMeBot(msg);
+          const crypto = await import("crypto");
+          const payload = JSON.stringify({
+            event: "reminder_due",
+            reminder: {
+              id: reminder.id,
+              client_id: reminder.clientId,
+              content: reminder.content,
+              reminder_at: reminder.reminderAt,
+            },
+            client: client ? { id: client.id, fullName: client.fullName, phone: client.phone } : null,
+            text: msg,
+          });
+          const signature = crypto.createHmac("sha256", gaSecret).update(payload).digest("hex");
+          const gaRes = await fetch(`${gaUrl}/webhook/refund-lead`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
+            body: payload,
+          });
+          if (!gaRes.ok) {
+            console.error(`[Reminder] ${reminder.id} — Gmail Agent returned ${gaRes.status}`);
+            continue;
           }
           await storage.markReminderWhatsappNotified(reminder.id);
-          console.log(`[WhatsApp] Reminder ${reminder.id} → ${delivered ? "✅ via Gmail Agent" : "✅ via CallMeBot"}`);
+          console.log(`[WhatsApp] Reminder ${reminder.id} → ✅ via Gmail Agent`);
         } catch (err: any) {
           console.error(`[WhatsApp] Reminder ${reminder.id} error:`, err.message);
         }
