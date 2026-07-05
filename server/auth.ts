@@ -143,8 +143,8 @@ export function setupAuth(app: Express) {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: "חובה למלא סיסמה נוכחית וסיסמה חדשה" });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: "הסיסמה חייבת להיות לפחות 6 תווים" });
+    if (newPassword.length < 12) {
+      return res.status(400).json({ message: "הסיסמה חייבת להיות לפחות 12 תווים" });
     }
     try {
       const user = await storage.getUser(req.user!.id);
@@ -190,8 +190,8 @@ export function setupAuth(app: Express) {
     if (!token || !newPassword) {
       return res.status(400).json({ message: "חובה להזין קוד איפוס וסיסמה חדשה" });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: "הסיסמה חייבת להיות לפחות 6 תווים" });
+    if (newPassword.length < 12) {
+      return res.status(400).json({ message: "הסיסמה חייבת להיות לפחות 12 תווים" });
     }
     try {
       const resetToken = await storage.getValidResetToken(token);
@@ -220,50 +220,55 @@ export function setupAuth(app: Express) {
   });
 }
 
-// Bot API token bypass — lets the Gmail Agent (WhatsApp bot) call any auth-gated
-// endpoint by sending X-Bot-Token. Fakes an admin user so downstream logic works.
+// Bot API token — SCOPED to /api/bot/* read endpoints only. Compares timing-safe.
+// Identity is assigned server-side based on the token, not chosen by the caller.
+// Removed the X-Bot-User header trust and the blanket admin bypass on all routes.
+function timingSafeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
 function checkBotToken(req: Request): boolean {
   const expected = process.env.BOT_API_TOKEN;
   if (!expected) return false;
   const provided = req.headers["x-bot-token"] as string | undefined;
-  if (!provided || provided !== expected) return false;
+  if (!provided) return false;
+  if (!timingSafeEqual(provided, expected)) return false;
 
-  // Optional X-Bot-User header tells us which real user is behind this bot call.
-  // Format: "eden" | "eliezer" | free-form name. Defaults to generic bot.
-  const botUser = (req.headers["x-bot-user"] as string | undefined)?.toLowerCase();
-  const nameMap: Record<string, { fullName: string; email: string }> = {
-    eden: { fullName: "עדן אסולין (דרך הבוט)", email: "eden@ea-assets.com" },
-    eliezer: { fullName: "אליעז אסולין (דרך הבוט)", email: "office@ea-assets.com" },
-  };
-  const identity = (botUser && nameMap[botUser]) || {
-    fullName: "Gmail Agent Bot",
-    email: "bot@ea-assets.com",
-  };
-
+  // Bot identity is fixed and server-controlled — the caller cannot pick it.
   (req as any).user = {
     id: "bot",
-    fullName: identity.fullName,
-    email: identity.email,
-    role: "admin",
+    fullName: "Gmail Agent Bot",
+    email: "bot@ea-assets.com",
+    role: "bot",
   };
   return true;
 }
 
+// Guards a route so the bot token is accepted AND the route is on the /api/bot/ path.
+// Anything outside that path never accepts the bot token, preventing the shared
+// secret from being a global admin bypass.
+export function requireBotOrOwner(req: Request, res: any, next: any) {
+  if (req.path.startsWith("/api/bot/") && checkBotToken(req)) return next();
+  return requireOwner(req, res, next);
+}
+
 export function requireAuth(req: Request, res: any, next: any) {
-  if (checkBotToken(req)) return next();
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "לא מחובר" });
   }
   next();
 }
 
-// Owner routes (admin/user/accountant) — explicitly block partners
+// Owner routes (admin/user/accountant) — explicitly block partners AND bots.
+// Bots must use /api/bot/* which uses requireBotOrOwner.
 export function requireOwner(req: Request, res: any, next: any) {
-  if (checkBotToken(req)) return next();
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "לא מחובר" });
   }
-  if (req.user?.role === "partner") {
+  if (req.user?.role === "partner" || req.user?.role === "bot") {
     return res.status(403).json({ message: "אין הרשאה" });
   }
   next();

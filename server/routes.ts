@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { requireAuth, requireOwner, requirePartner } from "./auth";
+import { requireAuth, requireOwner, requirePartner, requireBotOrOwner } from "./auth";
 import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema, insertPartnerLeadSchema } from "@shared/schema";
 import { formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
 import multer from "multer";
@@ -36,9 +36,35 @@ async function notifyGmailAgentLeadCreated(client: any) {
   console.log(`[GmailAgent] Lead push status=${res.status}`);
 }
 
+// Allow-list of file types acceptable for CPA document uploads (ID cards, tax
+// forms, salary slips, bank statements). Rejects .html/.svg/.exe/etc that could
+// be served back as active content via the Supabase signed URL.
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
+const ALLOWED_UPLOAD_EXTENSIONS = /\.(pdf|jpe?g|png|heic|heif|docx?|xlsx?)$/i;
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_UPLOAD_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error(`סוג קובץ לא נתמך: ${file.mimetype}`));
+    }
+    if (!ALLOWED_UPLOAD_EXTENSIONS.test(file.originalname)) {
+      return cb(new Error(`סיומת קובץ לא נתמכת: ${file.originalname}`));
+    }
+    cb(null, true);
+  },
 });
 
 const partialClientSchema = insertClientSchema.partial();
@@ -57,33 +83,33 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
-  app.get("/api/dashboard/stats", requireAuth, async (_req, res) => {
+  app.get("/api/dashboard/stats", requireOwner, async (_req, res) => {
     const stats = await storage.getDashboardStats();
     res.json(stats);
   });
 
-  app.get("/api/users", requireAuth, async (_req, res) => {
+  app.get("/api/users", requireOwner, async (_req, res) => {
     const users = await storage.getUsers();
     res.json(users.map(u => ({ ...u, passwordHash: undefined })));
   });
 
-  app.get("/api/clients", requireAuth, async (_req, res) => {
+  app.get("/api/clients", requireOwner, async (_req, res) => {
     const clients = await storage.getClients();
     res.json(clients);
   });
 
-  app.get("/api/clients/deleted", requireAuth, async (_req, res) => {
+  app.get("/api/clients/deleted", requireOwner, async (_req, res) => {
     const deleted = await storage.getDeletedClients();
     res.json(deleted);
   });
 
-  app.get("/api/clients/:id", requireAuth, async (req, res) => {
+  app.get("/api/clients/:id", requireOwner, async (req, res) => {
     const client = await storage.getClient(req.params.id);
     if (!client) return res.status(404).json({ message: "Client not found" });
     res.json(client);
   });
 
-  app.post("/api/clients", requireAuth, async (req, res) => {
+  app.post("/api/clients", requireOwner, async (req, res) => {
     const parsed = insertClientSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const client = await storage.createClient(parsed.data);
@@ -108,7 +134,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/clients/:id", requireAuth, async (req, res) => {
+  app.patch("/api/clients/:id", requireOwner, async (req, res) => {
     const body = { ...req.body };
     if (typeof body.firstContactAt === "string") body.firstContactAt = new Date(body.firstContactAt);
     if (typeof body.lastContactAt === "string") body.lastContactAt = new Date(body.lastContactAt);
@@ -119,7 +145,7 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.post("/api/clients/:id/contact-attempt", requireAuth, async (req, res) => {
+  app.post("/api/clients/:id/contact-attempt", requireOwner, async (req, res) => {
     const client = await storage.getClient(req.params.id);
     if (!client) return res.status(404).json({ message: "Client not found" });
 
@@ -141,41 +167,41 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/clients/:id", requireAuth, async (req, res) => {
+  app.delete("/api/clients/:id", requireOwner, async (req, res) => {
     await storage.deleteClient(req.params.id);
     res.status(204).send();
   });
 
-  app.post("/api/clients/:id/restore", requireAuth, async (req, res) => {
+  app.post("/api/clients/:id/restore", requireOwner, async (req, res) => {
     const restored = await storage.restoreClient(req.params.id);
     if (!restored) return res.status(404).json({ message: "Client not found" });
     res.json(restored);
   });
 
-  app.get("/api/cases", requireAuth, async (_req, res) => {
+  app.get("/api/cases", requireOwner, async (_req, res) => {
     const allCases = await storage.getCases();
     res.json(allCases);
   });
 
-  app.get("/api/cases/:id", requireAuth, async (req, res) => {
+  app.get("/api/cases/:id", requireOwner, async (req, res) => {
     const c = await storage.getCase(req.params.id);
     if (!c) return res.status(404).json({ message: "Case not found" });
     res.json(c);
   });
 
-  app.get("/api/clients/:clientId/cases", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/cases", requireOwner, async (req, res) => {
     const clientCases = await storage.getCasesByClient(req.params.clientId);
     res.json(clientCases);
   });
 
-  app.post("/api/cases", requireAuth, async (req, res) => {
+  app.post("/api/cases", requireOwner, async (req, res) => {
     const parsed = insertCaseSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const c = await storage.createCase(parsed.data);
     res.status(201).json(c);
   });
 
-  app.patch("/api/cases/:id", requireAuth, async (req, res) => {
+  app.patch("/api/cases/:id", requireOwner, async (req, res) => {
     const parsed = partialCaseSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const updated = await storage.updateCase(req.params.id, parsed.data);
@@ -183,35 +209,35 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/cases/:id", requireAuth, async (req, res) => {
+  app.delete("/api/cases/:id", requireOwner, async (req, res) => {
     await storage.deleteCase(req.params.id);
     res.status(204).send();
   });
 
-  app.get("/api/tasks", requireAuth, async (_req, res) => {
+  app.get("/api/tasks", requireOwner, async (_req, res) => {
     const allTasks = await storage.getTasks();
     res.json(allTasks);
   });
 
-  app.get("/api/tasks/:id", requireAuth, async (req, res) => {
+  app.get("/api/tasks/:id", requireOwner, async (req, res) => {
     const task = await storage.getTask(req.params.id);
     if (!task) return res.status(404).json({ message: "Task not found" });
     res.json(task);
   });
 
-  app.get("/api/clients/:clientId/tasks", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/tasks", requireOwner, async (req, res) => {
     const clientTasks = await storage.getTasksByClient(req.params.clientId);
     res.json(clientTasks);
   });
 
-  app.post("/api/tasks", requireAuth, async (req, res) => {
+  app.post("/api/tasks", requireOwner, async (req, res) => {
     const parsed = insertTaskSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const task = await storage.createTask(parsed.data);
     res.status(201).json(task);
   });
 
-  app.patch("/api/tasks/:id", requireAuth, async (req, res) => {
+  app.patch("/api/tasks/:id", requireOwner, async (req, res) => {
     const parsed = partialTaskSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const updated = await storage.updateTask(req.params.id, parsed.data);
@@ -219,35 +245,35 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/tasks/:id", requireAuth, async (req, res) => {
+  app.delete("/api/tasks/:id", requireOwner, async (req, res) => {
     await storage.deleteTask(req.params.id);
     res.status(204).send();
   });
 
-  app.get("/api/payments", requireAuth, async (_req, res) => {
+  app.get("/api/payments", requireOwner, async (_req, res) => {
     const allPayments = await storage.getPayments();
     res.json(allPayments);
   });
 
-  app.get("/api/payments/:id", requireAuth, async (req, res) => {
+  app.get("/api/payments/:id", requireOwner, async (req, res) => {
     const payment = await storage.getPayment(req.params.id);
     if (!payment) return res.status(404).json({ message: "Payment not found" });
     res.json(payment);
   });
 
-  app.get("/api/clients/:clientId/payments", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/payments", requireOwner, async (req, res) => {
     const clientPayments = await storage.getPaymentsByClient(req.params.clientId);
     res.json(clientPayments);
   });
 
-  app.post("/api/payments", requireAuth, async (req, res) => {
+  app.post("/api/payments", requireOwner, async (req, res) => {
     const parsed = insertPaymentSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const payment = await storage.createPayment(parsed.data);
     res.status(201).json(payment);
   });
 
-  app.patch("/api/payments/:id", requireAuth, async (req, res) => {
+  app.patch("/api/payments/:id", requireOwner, async (req, res) => {
     const parsed = partialPaymentSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const updated = await storage.updatePayment(req.params.id, parsed.data);
@@ -255,58 +281,58 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/payments/:id", requireAuth, async (req, res) => {
+  app.delete("/api/payments/:id", requireOwner, async (req, res) => {
     await storage.deletePayment(req.params.id);
     res.status(204).send();
   });
 
-  app.get("/api/clients/:clientId/communications", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/communications", requireOwner, async (req, res) => {
     const logs = await storage.getCommunicationLogs(req.params.clientId);
     res.json(logs);
   });
 
-  app.post("/api/communications", requireAuth, async (req, res) => {
+  app.post("/api/communications", requireOwner, async (req, res) => {
     const parsed = insertCommunicationLogSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const log = await storage.createCommunicationLog(parsed.data);
     res.status(201).json(log);
   });
 
-  app.get("/api/transactions", requireAuth, async (_req, res) => {
+  app.get("/api/transactions", requireOwner, async (_req, res) => {
     const allTx = await storage.getTransactions();
     res.json(allTx);
   });
 
-  app.get("/api/clients/:clientId/transactions", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/transactions", requireOwner, async (req, res) => {
     const clientTx = await storage.getTransactionsByClient(req.params.clientId);
     res.json(clientTx);
   });
 
-  app.post("/api/transactions", requireAuth, async (req, res) => {
+  app.post("/api/transactions", requireOwner, async (req, res) => {
     const parsed = insertTransactionSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const tx = await storage.createTransaction(parsed.data);
     res.status(201).json(tx);
   });
 
-  app.delete("/api/transactions/:id", requireAuth, async (req, res) => {
+  app.delete("/api/transactions/:id", requireOwner, async (req, res) => {
     await storage.deleteTransaction(req.params.id);
     res.status(204).send();
   });
 
-  app.get("/api/clients/:clientId/notes", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/notes", requireOwner, async (req, res) => {
     const notes = await storage.getClientNotes(req.params.clientId);
     res.json(notes);
   });
 
-  app.post("/api/clients/:clientId/notes", requireAuth, async (req, res) => {
+  app.post("/api/clients/:clientId/notes", requireOwner, async (req, res) => {
     const parsed = insertClientNoteSchema.safeParse({ ...req.body, clientId: req.params.clientId });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const note = await storage.createClientNote(parsed.data);
     res.status(201).json(note);
   });
 
-  app.patch("/api/notes/:id", requireAuth, async (req, res) => {
+  app.patch("/api/notes/:id", requireOwner, async (req, res) => {
     const { content } = req.body;
     if (!content || typeof content !== "string") return res.status(400).json({ message: "Content is required" });
     const updated = await storage.updateClientNote(req.params.id, content);
@@ -314,28 +340,28 @@ export async function registerRoutes(
     res.json(updated);
   });
 
-  app.delete("/api/notes/:id", requireAuth, async (req, res) => {
+  app.delete("/api/notes/:id", requireOwner, async (req, res) => {
     await storage.deleteClientNote(req.params.id);
     res.status(204).send();
   });
 
   // ─── Reminders ─────────────────────────────────────────────────
-  app.get("/api/reminders/active", requireAuth, async (_req, res) => {
+  app.get("/api/reminders/active", requireOwner, async (_req, res) => {
     const active = await storage.getActiveReminders();
     res.json(active);
   });
 
-  app.get("/api/clients/:id/reminders", requireAuth, async (req, res) => {
+  app.get("/api/clients/:id/reminders", requireOwner, async (req, res) => {
     const items = await storage.getRemindersByClient(req.params.id);
     res.json(items);
   });
 
-  app.get("/api/reminders", requireAuth, async (_req, res) => {
+  app.get("/api/reminders", requireOwner, async (_req, res) => {
     const all = await storage.getAllUpcomingReminders();
     res.json(all);
   });
 
-  app.post("/api/clients/:id/reminders", requireAuth, async (req, res) => {
+  app.post("/api/clients/:id/reminders", requireOwner, async (req, res) => {
     const { content, reminderAt } = req.body;
     if (!content || !reminderAt) return res.status(400).json({ message: "content and reminderAt required" });
     const reminder = await storage.createReminder({
@@ -346,13 +372,13 @@ export async function registerRoutes(
     res.status(201).json(reminder);
   });
 
-  app.patch("/api/reminders/:id", requireAuth, async (req, res) => {
+  app.patch("/api/reminders/:id", requireOwner, async (req, res) => {
     const updated = await storage.updateReminder(req.params.id, req.body);
     if (!updated) return res.status(404).json({ message: "Reminder not found" });
     res.json(updated);
   });
 
-  app.delete("/api/reminders/:id", requireAuth, async (req, res) => {
+  app.delete("/api/reminders/:id", requireOwner, async (req, res) => {
     await storage.deleteReminder(req.params.id);
     res.status(204).send();
   });
@@ -534,7 +560,7 @@ export async function registerRoutes(
   };
 
   // Weekly business intelligence for the bot's Saturday meeting
-  app.get("/api/bot/weekly-business", requireAuth, async (_req, res) => {
+  app.get("/api/bot/weekly-business", requireBotOrOwner, async (_req, res) => {
     try {
       const now = Date.now();
       const weekAgo = new Date(now - 7 * 86400_000);
@@ -690,24 +716,48 @@ export async function registerRoutes(
   app.post("/api/webhooks/landy", leadWebhookHandler);
 
   // ─── Webhook Events (audit log viewer) ─────────────────────────
-  app.get("/api/webhook-events", requireAuth, async (_req, res) => {
+  app.get("/api/webhook-events", requireOwner, async (_req, res) => {
     const events = await storage.getWebhookEvents(200);
     res.json(events);
   });
 
-  // ─── Twilio WhatsApp Inbound ─────────────────────────────────────
-  // Public — Twilio calls this when user sends a WhatsApp message to the sandbox
+  // ─── Twilio WhatsApp Inbound (LEGACY) ────────────────────────────
+  // This endpoint is superseded by the Gmail Agent WhatsApp integration. Kept only
+  // for the old Twilio sandbox bot. Now:
+  //   1. Requires TWILIO_AUTH_TOKEN env var to be set — otherwise 503 (route off).
+  //   2. Verifies the X-Twilio-Signature over the full URL + form params.
+  //   3. Still checks that the sender is the configured owner phone.
+  // Without a valid signature the response is 403 (previously it happily replied
+  // with real CRM data to any spoofed `From=`).
   app.post("/api/twilio/whatsapp-inbound", async (req, res) => {
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+    if (!twilioAuthToken) {
+      return res.status(503).type("text/plain").send("Twilio inbound not configured");
+    }
+    let twilioLib: typeof import("twilio");
+    try {
+      twilioLib = (await import("twilio")).default as any;
+    } catch {
+      return res.status(503).type("text/plain").send("Twilio library not installed");
+    }
+    const signature = req.headers["x-twilio-signature"] as string | undefined;
+    const url = `https://${req.headers.host}${req.originalUrl}`;
+    const isValid = signature && twilioLib.validateRequest(twilioAuthToken, signature, url, req.body);
+    if (!isValid) {
+      console.warn(`[WhatsApp:Bot] Invalid Twilio signature from ${req.ip}`);
+      return res.status(403).type("text/plain").send("Forbidden");
+    }
+
     const msgBody: string = (req.body.Body ?? "").trim();
     const from: string = req.body.From ?? "";
-    console.log(`[WhatsApp:Bot] From=${from} Body="${msgBody}"`);
+    // No PII in logs — just note that the request was accepted.
+    console.log(`[WhatsApp:Bot] Signed inbound accepted`);
 
     const ownerPhone = process.env.WHATSAPP_OWNER_PHONE?.trim();
     if (ownerPhone) {
       const fromDigits = from.replace(/\D/g, "");
       const ownerDigits = ownerPhone.replace(/\D/g, "");
       if (!fromDigits.endsWith(ownerDigits) && !ownerDigits.endsWith(fromDigits)) {
-        console.warn(`[WhatsApp:Bot] Unauthorized sender: ${from}`);
         return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
       }
     }
@@ -943,12 +993,12 @@ export async function registerRoutes(
   // ────────────────────────────────────────────────────────────────
 
   // ─── Documents (admin) ──────────────────────────────────────────
-  app.get("/api/clients/:clientId/documents", requireAuth, async (req, res) => {
+  app.get("/api/clients/:clientId/documents", requireOwner, async (req, res) => {
     const docs = await storage.getDocumentsByClient(req.params.clientId);
     res.json(docs);
   });
 
-  app.post("/api/clients/:clientId/documents", requireAuth, upload.single("file"), async (req, res) => {
+  app.post("/api/clients/:clientId/documents", requireOwner, upload.single("file"), async (req, res) => {
     if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון מסמכים לא מוגדר (SUPABASE_URL/SERVICE_ROLE_KEY חסרים)" });
     const file = (req as any).file;
     if (!file) return res.status(400).json({ message: "לא נשלח קובץ" });
@@ -981,7 +1031,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/documents/:id/download", requireAuth, async (req, res) => {
+  app.get("/api/documents/:id/download", requireOwner, async (req, res) => {
     if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון מסמכים לא מוגדר" });
     const doc = await storage.getDocument(req.params.id);
     if (!doc) return res.status(404).json({ message: "מסמך לא נמצא" });
@@ -993,7 +1043,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/documents/:id", requireAuth, async (req, res) => {
+  app.delete("/api/documents/:id", requireOwner, async (req, res) => {
     const doc = await storage.getDocument(req.params.id);
     if (!doc) return res.status(404).json({ message: "מסמך לא נמצא" });
     try {
@@ -1009,7 +1059,7 @@ export async function registerRoutes(
   // ────────────────────────────────────────────────────────────────
 
   // ─── WhatsApp Test Endpoint (via Gmail Agent) ────────────────────
-  app.post("/api/test-whatsapp", requireAuth, async (req, res) => {
+  app.post("/api/test-whatsapp", requireOwner, async (req, res) => {
     const gaUrl = process.env.GMAIL_AGENT_WEBHOOK_URL;
     const gaSecret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
     if (!gaUrl || !gaSecret) {

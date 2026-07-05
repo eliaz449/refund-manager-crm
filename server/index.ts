@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -17,6 +19,32 @@ declare module "http" {
   }
 }
 
+// ─── Security headers (H-6) ───────────────────────────────────────────
+// Vite dev needs 'unsafe-inline' / 'unsafe-eval', so only enforce a strict CSP
+// in production. HSTS + noSniff + frameguard apply everywhere.
+app.use(
+  helmet({
+    contentSecurityPolicy:
+      process.env.NODE_ENV === "production"
+        ? {
+            useDefaults: true,
+            directives: {
+              "default-src": ["'self'"],
+              "script-src": ["'self'"],
+              "style-src": ["'self'", "'unsafe-inline'"],
+              "img-src": ["'self'", "data:", "https:"],
+              "connect-src": ["'self'", "https://refund-manager-crm-production.up.railway.app"],
+              "frame-ancestors": ["'none'"],
+              "object-src": ["'none'"],
+              "base-uri": ["'self'"],
+            },
+          }
+        : false,
+    crossOriginEmbedderPolicy: false,
+    hsts: process.env.NODE_ENV === "production" ? { maxAge: 15552000, includeSubDomains: true } : false,
+  }),
+);
+
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -26,6 +54,43 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// ─── Rate limiters (H-2, H-3, M-6) ────────────────────────────────────
+// Login brute-force cap. Failed AND successful attempts count, so an attacker
+// can't hide via "successful" test logins.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: "יותר מדי ניסיונות התחברות. נסה שוב בעוד 15 דקות." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(["/api/auth/login", "/api/auth/reset-password", "/api/auth/forgot-password"], loginLimiter);
+
+// Webhook flood protection — per IP. Attackers who don't have the HMAC secret
+// still cause DB inserts into webhook_events at the current design; capping the
+// hit-rate limits the audit-table growth attack.
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(["/api/webhooks/lead", "/api/webhooks/landy"], webhookLimiter);
+
+// Public error sink used to be unbounded — cap it hard.
+const clientErrorLimiter = rateLimit({ windowMs: 60 * 1000, max: 20 });
+app.use("/api/client-error", clientErrorLimiter);
+
+// Generic API limiter as belt-and-suspenders for everything else.
+const genericLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === "/api/health" || req.path === "/api/version",
+});
+app.use("/api", genericLimiter);
 
 setupAuth(app);
 
@@ -54,12 +119,18 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse && !path.startsWith("/api/auth")) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      const logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      // NEVER log response bodies in production — GET /api/clients would dump the
+      // entire client DB (tax IDs, phones, refund amounts) to Railway stdout.
+      // Only expose short metadata in non-production for debugging.
+      if (process.env.NODE_ENV !== "production" && capturedJsonResponse && !path.startsWith("/api/auth")) {
+        const summary = Array.isArray(capturedJsonResponse)
+          ? `array(${capturedJsonResponse.length})`
+          : `keys=${Object.keys(capturedJsonResponse).slice(0, 5).join(",")}`;
+        log(`${logLine} :: ${summary}`);
+      } else {
+        log(logLine);
       }
-
-      log(logLine);
     }
   });
 
@@ -84,9 +155,18 @@ app.use((req, res, next) => {
     });
   });
 
-  // Debug: probes the email scheduler from outside.
-  // Returns counts + the LAST scheduler error (if any).
-  app.get("/api/debug/email-reminder-status", async (_req, res) => {
+  // Debug endpoints — auth-gated. Owner only, and only outside production.
+  // Previously these were open to the internet and leaked reminder PII + let
+  // anyone drain the Resend quota. Kept for local development, disabled in prod.
+  const { requireOwner } = await import("./auth");
+  const debugGuard = (req: Request, res: Response, next: NextFunction) => {
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEBUG_ENDPOINTS !== "true") {
+      return res.status(404).json({ error: "not found" });
+    }
+    return requireOwner(req, res, next);
+  };
+
+  app.get("/api/debug/email-reminder-status", debugGuard, async (_req, res) => {
     try {
       const { storage } = await import("./storage");
       const { isEmailConfigured } = await import("./email");
@@ -119,13 +199,13 @@ app.use((req, res, next) => {
         })),
       });
     } catch (err: any) {
-      res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
+      res.status(500).json({ error: "internal error" });
     }
   });
 
   // Debug: send a test reminder email immediately without touching the
   // reminders table. Verifies the Resend pipeline works end-to-end.
-  app.post("/api/debug/send-test-email", async (_req, res) => {
+  app.post("/api/debug/send-test-email", debugGuard, async (_req, res) => {
     try {
       const { sendReminderEmail, isEmailConfigured } = await import("./email");
       if (!isEmailConfigured()) {
@@ -145,7 +225,7 @@ app.use((req, res, next) => {
   });
 
   // Debug: send a specific existing reminder NOW, regardless of its time.
-  app.post("/api/debug/send-reminder-now/:id", async (req, res) => {
+  app.post("/api/debug/send-reminder-now/:id", debugGuard, async (req, res) => {
     try {
       const { storage } = await import("./storage");
       const { sendReminderEmail, isEmailConfigured } = await import("./email");
@@ -173,7 +253,7 @@ app.use((req, res, next) => {
 
   // Debug: force-trigger the email scheduler ONCE — picks up all pending
   // reminders right now without waiting for the next 60s tick.
-  app.post("/api/debug/run-email-scheduler", async (_req, res) => {
+  app.post("/api/debug/run-email-scheduler", debugGuard, async (_req, res) => {
     try {
       const { storage } = await import("./storage");
       const { sendReminderEmail, isEmailConfigured } = await import("./email");
@@ -200,7 +280,7 @@ app.use((req, res, next) => {
       }
       res.json({ pendingCount: pending.length, results });
     } catch (err: any) {
-      res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) });
+      res.status(500).json({ error: "internal error" });
     }
   });
 
