@@ -545,16 +545,42 @@ export async function registerRoutes(
 
       const inWindow = (date: any) => date && new Date(date).getTime() >= weekAgo.getTime();
 
+      // ─── Cohort: leads created this week ─────────────────────
       const newLeadsThisWeek = allClients.filter(c => inWindow(c.createdAt));
+      const newLeadIds = new Set(newLeadsThisWeek.map(c => c.id));
+
+      const answeredContactStatuses = new Set([
+        "talked", "sent_documents", "in_process", "closed",
+      ]);
+      const notRelevantStatuses = new Set([
+        "not_relevant", "not_interested", "wrong_info",
+      ]);
+      const sentDocsStatuses = new Set([
+        "sent_documents", "in_process", "closed",
+      ]);
+
+      const answeredOfNew = newLeadsThisWeek.filter(c =>
+        answeredContactStatuses.has(c.contactStatus || "") || c.firstContactAt || (c.contactAttempts || 0) > 0
+      );
+      const sentDocsOfNew = newLeadsThisWeek.filter(c => sentDocsStatuses.has(c.contactStatus || ""));
+      const closedOfNew = newLeadsThisWeek.filter(c => c.leadStatus === "closed_deal");
+      const notRelevantOfNew = newLeadsThisWeek.filter(c =>
+        c.leadStatus === "not_relevant" || notRelevantStatuses.has(c.contactStatus || "")
+      );
+      const paidClientIds = new Set(
+        allPayments.filter(p => p.status === "paid").map(p => p.clientId)
+      );
+      const paidOfNew = newLeadsThisWeek.filter(c => paidClientIds.has(c.id));
+
+      // ─── Activity this week (any lead, any age) ──────────────
+      const documentsSentThisWeek = allClients.filter(c =>
+        sentDocsStatuses.has(c.contactStatus || "") && inWindow(c.updatedAt)
+      );
       const closedThisWeek = allClients.filter(c => c.leadStatus === "closed_deal" && inWindow(c.updatedAt));
       const notRelevantThisWeek = allClients.filter(c =>
-        (c.leadStatus === "not_relevant" || c.contactStatus === "not_relevant" || c.contactStatus === "not_interested" || c.contactStatus === "wrong_info")
+        (c.leadStatus === "not_relevant" || notRelevantStatuses.has(c.contactStatus || ""))
         && inWindow(c.updatedAt),
       );
-      const notClosedButActiveWeek = allClients.filter(c =>
-        c.status === "lead" && !inWindow(c.updatedAt || c.createdAt) === false && c.leadStatus !== "closed_deal"
-      );
-
       const paymentsThisWeek = allPayments.filter(p => p.status === "paid" && inWindow(p.paymentDate));
 
       // Response-time analytics: first note = first outreach
@@ -606,18 +632,39 @@ export async function registerRoutes(
         });
       }
 
+      // Average response hours (leads created this week that got a first note)
+      const withResponse = responseTimes.filter(r => r.hoursToRespond != null);
+      const avgResponseHours = withResponse.length
+        ? Math.round((withResponse.reduce((s, r) => s + r.hoursToRespond, 0) / withResponse.length) * 10) / 10
+        : null;
+
+      const activeClientsNow = allClients.filter(c => c.status === "active").length;
+
       res.json({
         window: { from: weekAgo.toISOString(), to: new Date(now).toISOString() },
         summary: {
+          // Cohort: leads that came in this week
           newLeads: newLeadsThisWeek.length,
-          closedDeals: closedThisWeek.length,
-          notRelevant: notRelevantThisWeek.length,
-          paymentsCount: paymentsThisWeek.length,
-          totalPaid: paymentsThisWeek.reduce((s, p) => s + Number(p.amount || 0), 0),
+          cohortFunnel: {
+            answered: answeredOfNew.length,
+            sentDocs: sentDocsOfNew.length,
+            closed: closedOfNew.length,
+            notRelevant: notRelevantOfNew.length,
+            paid: paidOfNew.length,
+          },
+          // Activity this week (leads may be from any period)
+          thisWeekActivity: {
+            documentsSent: documentsSentThisWeek.length,
+            closedDeals: closedThisWeek.length,
+            paymentsCount: paymentsThisWeek.length,
+            totalPaid: paymentsThisWeek.reduce((s, p) => s + Number(p.amount || 0), 0),
+          },
+          avgResponseHours,
+          activeClientsNow,
         },
         closedDeals: await withReasons(closedThisWeek),
         notRelevant: await withReasons(notRelevantThisWeek),
-        payments: paymentsEnriched,
+        payments: paymentsEnriched, // each includes daysFromLeadToPayment
         responseTimes,
         sourceBreakdown: {
           newLeads: countBy(newLeadsThisWeek, c => c.source || "unknown"),
