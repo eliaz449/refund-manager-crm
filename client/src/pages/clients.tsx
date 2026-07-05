@@ -47,11 +47,14 @@ const contactStatusLabels: Record<string, string> = {
   no_answer_6: "אין מענה 6",
   talked: "ענה",
   sent_documents: "שלח מסמכים",
-  in_process: "בתהליך",
+  in_process: "בטיפול",
   closed: "נסגר",
   not_relevant: "לא רלוונטי",
   not_interested: "לא מעוניין",
   wrong_info: "השאיר פרטים בטעות",
+  waiting_for_docs: "מחכה לטפסים",
+  missing_docs: "חסרים מסמכים",
+  closed_won: "סגור בהצלחה",
 };
 
 function formatCurrency(value: number): string {
@@ -76,6 +79,11 @@ function ActionStatusButton({
     if (!status || status === "new") return "bg-blue-100 text-blue-800 hover:bg-blue-200";
     if (status.startsWith("no_answer")) return "bg-red-100 text-red-800 hover:bg-red-200";
     if (status === "talked") return "bg-amber-100 text-amber-800 hover:bg-amber-200";
+    if (status === "waiting_for_docs") return "bg-purple-100 text-purple-800 hover:bg-purple-200";
+    if (status === "missing_docs") return "bg-orange-100 text-orange-800 hover:bg-orange-200";
+    if (status === "sent_documents") return "bg-emerald-100 text-emerald-800 hover:bg-emerald-200";
+    if (status === "in_process") return "bg-cyan-100 text-cyan-800 hover:bg-cyan-200";
+    if (status === "closed_won" || status === "closed") return "bg-green-100 text-green-800 hover:bg-green-200";
     if (["not_relevant", "not_interested", "wrong_info"].includes(status)) return "bg-gray-200 text-gray-700 hover:bg-gray-300";
     return "bg-muted hover:bg-muted/80";
   })();
@@ -99,20 +107,33 @@ function ActionStatusButton({
           <ChevronDown className="w-3 h-3 flex-shrink-0" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuItem onClick={() => onChangeStatus("talked")}>
           <span className="text-amber-700">●</span>&nbsp;ענה
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onChangeStatus(nextNoAnswer())}>
           <span className="text-red-600">●</span>&nbsp;לא ענה
         </DropdownMenuItem>
+        <div className="h-px bg-muted my-1" />
+        <DropdownMenuItem onClick={() => onChangeStatus("waiting_for_docs")}>
+          <span className="text-purple-700">🤖</span>&nbsp;מחכה לטפסים (בוט יטפל)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChangeStatus("missing_docs")}>
+          <span className="text-orange-700">📄</span>&nbsp;חסרים מסמכים
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChangeStatus("in_process")}>
+          <span className="text-cyan-700">⚙</span>&nbsp;בטיפול (עדן)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChangeStatus("closed_won")}>
+          <span className="text-green-700">✓</span>&nbsp;סגור בהצלחה
+        </DropdownMenuItem>
+        <div className="h-px bg-muted my-1" />
         <DropdownMenuItem onClick={() => onChangeStatus("not_interested")}>
           <span className="text-gray-500">●</span>&nbsp;לא מעוניין
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onChangeStatus("wrong_info")}>
           <span className="text-gray-500">●</span>&nbsp;השאיר פרטים בטעות
         </DropdownMenuItem>
-        <div className="h-px bg-muted my-1" />
         <DropdownMenuItem onClick={onOpenReminder}>
           <Bell className="w-3.5 h-3.5 ml-2 text-amber-600" />ליצור קשר בזמן אחר
         </DropdownMenuItem>

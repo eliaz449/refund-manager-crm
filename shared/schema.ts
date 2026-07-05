@@ -26,7 +26,8 @@ export const pricingTypeEnum = pgEnum("pricing_type", ["percentage", "fixed", "h
 export const contactStatusEnum = pgEnum("contact_status", [
   "new", "no_answer_1", "no_answer_2", "no_answer_3", "no_answer_4", "no_answer_5", "no_answer_6",
   "talked", "sent_documents", "in_process", "closed", "not_relevant",
-  "not_interested", "wrong_info", "next_year"
+  "not_interested", "wrong_info", "next_year",
+  "waiting_for_docs", "missing_docs", "closed_won"
 ]);
 export const refundStageEnum = pgEnum("refund_stage", [
   "details_received", "waiting_documents", "document_review",

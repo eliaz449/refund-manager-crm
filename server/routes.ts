@@ -36,6 +36,49 @@ async function notifyGmailAgentLeadCreated(client: any) {
   console.log(`[GmailAgent] Lead push status=${res.status}`);
 }
 
+// Bot-triggering statuses that hand off to Gmail Agent for autonomous follow-up
+const BOT_TRIGGER_STATUSES = new Set([
+  "waiting_for_docs",   // start doc collection flow with 4 reminders
+  "missing_docs",       // one-shot: tell client what's still missing
+  "in_process",         // enter treatment + 2-week anti-abandonment
+  "closed_won",         // send thank-you + feedback question
+]);
+
+async function notifyGmailAgentStatusChanged(
+  client: any,
+  oldStatus: string | null,
+  newStatus: string,
+  changedBy: string,
+) {
+  const url = process.env.GMAIL_AGENT_WEBHOOK_URL;
+  const secret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
+  if (!url || !secret) return;
+  const payload = JSON.stringify({
+    event: "lead_status_changed",
+    client: {
+      id: client.id,
+      fullName: client.fullName,
+      phone: client.phone,
+      email: client.email,
+    },
+    oldStatus,
+    newStatus,
+    changedBy,
+    at: new Date().toISOString(),
+  });
+  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  try {
+    const res = await fetch(`${url}/webhook/refund-lead-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
+      body: payload,
+    });
+    console.log(`[GmailAgent] Status push ${oldStatus}→${newStatus} for ${client.id}: ${res.status}`);
+  } catch (err: any) {
+    console.error(`[GmailAgent] Status push failed for ${client.id}:`, err.message);
+  }
+}
+
 // Allow-list of file types acceptable for CPA document uploads (ID cards, tax
 // forms, salary slips, bank statements). Rejects .html/.svg/.exe/etc that could
 // be served back as active content via the Supabase signed URL.
@@ -140,8 +183,22 @@ export async function registerRoutes(
     if (typeof body.lastContactAt === "string") body.lastContactAt = new Date(body.lastContactAt);
     const parsed = partialClientSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const before = await storage.getClient(req.params.id);
     const updated = await storage.updateClient(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Client not found" });
+
+    const oldStatus = before?.contactStatus || null;
+    const newStatus = updated.contactStatus || "";
+    if (
+      before && oldStatus !== newStatus &&
+      BOT_TRIGGER_STATUSES.has(newStatus)
+    ) {
+      const changedBy = (req.user as any)?.email || "system";
+      notifyGmailAgentStatusChanged(updated, oldStatus, newStatus, changedBy)
+        .catch(err => console.error("[GmailAgent:Status] ❌", err.message));
+    }
+
     res.json(updated);
   });
 
