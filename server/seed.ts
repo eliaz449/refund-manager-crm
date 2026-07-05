@@ -2,22 +2,38 @@ import { db } from "./db";
 import { users, clients, cases, tasks, payments, transactions } from "@shared/schema";
 import { eq, count } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
-const INITIAL_PASSWORD = process.env.INITIAL_ADMIN_PASSWORD || "TaxPro2026!";
+// Passwords are NEVER hardcoded. Only used at first-time seed. If INITIAL_ADMIN_PASSWORD
+// is not set, we generate a random 24-char password and print it to logs exactly ONCE
+// so the admin can copy it and change it immediately. Any subsequent boot is a no-op
+// because the user rows already exist.
+function generateRandomPassword(): string {
+  return crypto.randomBytes(18).toString("base64").replace(/[+/=]/g, "").slice(0, 24) + "!";
+}
 
-async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant" | "partner", initialPassword?: string) {
+async function ensureUser(fullName: string, email: string, role: "admin" | "user" | "accountant" | "partner") {
   const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
   if (existing.length > 0) {
     return existing[0];
   }
-  const passwordHash = await bcrypt.hash(initialPassword ?? INITIAL_PASSWORD, 12);
+  const envPassword = process.env.INITIAL_ADMIN_PASSWORD?.trim();
+  const seededPassword = envPassword && envPassword.length >= 12 ? envPassword : generateRandomPassword();
+  const passwordHash = await bcrypt.hash(seededPassword, 12);
   const [created] = await db.insert(users).values({
     fullName,
     email: email.toLowerCase(),
     passwordHash,
     role,
   }).returning();
-  console.log(`Created user: ${fullName} (${email}) with role: ${role}`);
+  console.log(`════════════════════════════════════════════════════════════════`);
+  console.log(`[SEED] Created ${role} user: ${fullName} <${email}>`);
+  if (!envPassword) {
+    console.log(`[SEED] TEMPORARY password (change on first login): ${seededPassword}`);
+  } else {
+    console.log(`[SEED] Password from INITIAL_ADMIN_PASSWORD env var`);
+  }
+  console.log(`════════════════════════════════════════════════════════════════`);
   return created;
 }
 
@@ -33,7 +49,8 @@ export async function seedDatabase() {
 
   const adminUser = await ensureUser("Eliezer Asulin", "eliazasulin@gmail.com", "admin");
   const adminUser2 = await ensureUser("Eden Asulin", "edenabergel94@gmail.com", "admin");
-  await ensureUser("סוכן ביטוח", "partner@taxpro.local", "partner", "Partner2026!");
+  // Partner account intentionally NOT seeded automatically — create manually with a strong
+  // password when a real partner needs access. Prevents committed default credentials.
 
   const [existing] = await db.select({ count: count() }).from(clients);
   if (existing.count > 0) return;
