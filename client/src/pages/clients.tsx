@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock,
   Bell, BellOff, ChevronDown, ChevronUp, Calendar, Handshake, Loader2,
-  ChevronLeft, ChevronRight, Check
+  ChevronLeft, ChevronRight, Check, Briefcase
 } from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -557,6 +557,16 @@ export default function Clients() {
     },
   });
 
+  const moveToSelfEmployedMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("PATCH", `/api/clients/${id}`, { clientType: "self_employed" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "הלקוח הועבר לעצמאים" });
+    },
+  });
+
   // Generic contactStatus updater used by the action column dropdown
   const contactStatusMutation = useMutation({
     mutationFn: async ({ id, contactStatus, notRelevantReason }: { id: string; contactStatus: string; notRelevantReason?: string }) => {
@@ -804,6 +814,11 @@ export default function Clients() {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShareClient(client); }}>
                             <Handshake className="w-4 h-4 ml-2" />העבר לשותף
                           </DropdownMenuItem>
+                          {client.clientType !== "self_employed" && (
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); moveToSelfEmployedMutation.mutate(client.id); }}>
+                              <Briefcase className="w-4 h-4 ml-2" />העבר לעצמאים
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(client.id); }}
@@ -1028,6 +1043,11 @@ export default function Clients() {
                               <DropdownMenuItem onClick={() => setShareClient(client)}>
                                 <Handshake className="w-4 h-4 ml-2" />העבר לשותף
                               </DropdownMenuItem>
+                              {client.clientType !== "self_employed" && (
+                                <DropdownMenuItem onClick={() => moveToSelfEmployedMutation.mutate(client.id)}>
+                                  <Briefcase className="w-4 h-4 ml-2" />העבר לעצמאים
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => deleteMutation.mutate(client.id)}

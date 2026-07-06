@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
   Plus, Search, Eye, MoreHorizontal, CheckCircle2, Circle,
-  ChevronDown, CalendarDays, Briefcase
+  ChevronDown, CalendarDays, Briefcase, UserRound
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -275,8 +275,19 @@ export default function SelfEmployed() {
   const [search, setSearch] = useState("");
   const [yearsClient, setYearsClient] = useState<Client | null>(null);
   const { toast } = useToast();
+  const qc = useQueryClient();
 
   const { data: allClients, isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
+
+  const moveToRegularMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("PATCH", `/api/clients/${id}`, { clientType: "private_individual" });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "הלקוח הועבר חזרה ללקוחות רגילים" });
+    },
+  });
 
   const clients = useMemo(() => {
     return (allClients || []).filter(c => {
@@ -505,6 +516,13 @@ export default function SelfEmployed() {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setYearsClient(client)}>
                             <CalendarDays className="w-4 h-4 ml-2" />נהל שנות מס
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            if (confirm(`להחזיר את ${client.fullName} ללקוחות רגילים?`)) {
+                              moveToRegularMutation.mutate(client.id);
+                            }
+                          }}>
+                            <UserRound className="w-4 h-4 ml-2" />החזר ללקוחות רגילים
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
