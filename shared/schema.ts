@@ -97,6 +97,14 @@ export const clients = pgTable("clients", {
   deletedAt: timestamp("deleted_at"),
   // Year notes: JSON {"2021": "הוגש", "2022": "..."} — 6 years per client
   yearNotes: text("year_notes"),
+  // Self-employed specific fields
+  vatNumber: text("vat_number"),
+  selfEmployedBusinessType: text("self_employed_business_type"), // exempt | authorized | company
+  vatFrequency: text("vat_frequency"),                           // monthly | bimonthly
+  vatNextDate: date("vat_next_date"),
+  advancePaymentMonthly: numeric("advance_payment_monthly"),
+  nationalInsuranceOk: boolean("national_insurance_ok").default(false),
+  selfEmployedYears: text("self_employed_years"), // JSON: [{year,status,amount,notes}]
   address: text("address"),
   status: clientStatusEnum("status").notNull().default("lead"),
   clientProcessStatus: clientProcessStatusEnum("client_process_status").default("lead"),
