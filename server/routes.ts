@@ -1268,6 +1268,14 @@ export async function registerRoutes(
       contractSignedAt: session.contractSignedAt,
       signerName: session.signerName,
       uploadedKeys: Array.from(uploadedKeys),
+      firmDetails: {
+        name: process.env.EDEN_FIRM_NAME ?? "עדן אסולין, רו\"ח",
+        companyId: process.env.EDEN_COMPANY_ID ?? null,
+        officeAddress: process.env.EDEN_OFFICE_ADDRESS ?? null,
+        cpaLicense: process.env.EDEN_CPA_LICENSE ?? null,
+        phone: process.env.EDEN_FIRM_PHONE ?? null,
+        email: process.env.EDEN_FIRM_EMAIL ?? null,
+      },
     });
   });
 

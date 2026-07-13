@@ -13,6 +13,15 @@ interface RequiredDoc {
   required: boolean;
 }
 
+interface FirmDetails {
+  name: string;
+  companyId: string | null;
+  officeAddress: string | null;
+  cpaLicense: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
 interface PortalData {
   sessionId: string;
   clientName: string;
@@ -24,6 +33,7 @@ interface PortalData {
   contractSignedAt: string | null;
   signerName: string | null;
   uploadedKeys: string[];
+  firmDetails?: FirmDetails;
 }
 
 interface UploadedDoc {
@@ -35,14 +45,17 @@ interface UploadedDoc {
 }
 
 // ─── Contract text ───────────────────────────────────────────────
-function ContractText({ clientName, commissionType, commissionValue }: {
+function ContractText({ clientName, commissionType, commissionValue, firm }: {
   clientName: string;
   commissionType: "percentage" | "fixed";
   commissionValue: string | null;
+  firm?: FirmDetails;
 }) {
   const feeText = commissionType === "percentage"
     ? `${commissionValue ?? "X"}% מסכום החזר המס שיתקבל בפועל`
     : `${Number(commissionValue ?? 0).toLocaleString("he-IL")} ₪`;
+
+  const firmName = firm?.name ?? "עדן אסולין, רו\"ח";
 
   return (
     <div className="text-sm leading-relaxed space-y-4 text-gray-700">
@@ -51,7 +64,11 @@ function ContractText({ clientName, commissionType, commissionValue }: {
       </div>
 
       <p>
-        <strong>בין:</strong> עדן אסולין, רו&quot;ח (&ldquo;נותן השירות&rdquo;)<br />
+        <strong>בין:</strong> {firmName}
+        {firm?.companyId && <span> | ח.פ. {firm.companyId}</span>}
+        {firm?.officeAddress && <span> | {firm.officeAddress}</span>}
+        {firm?.cpaLicense && <span> | רישיון רו&quot;ח מס&apos; {firm.cpaLicense}</span>}
+        {" "}(&ldquo;נותן השירות&rdquo;)<br />
         <strong>לבין:</strong> {clientName} (&ldquo;הלקוח&rdquo;)
       </p>
 
@@ -417,6 +434,7 @@ export default function Portal() {
                   clientName={portal.clientName}
                   commissionType={portal.commissionType}
                   commissionValue={portal.commissionValue}
+                  firm={portal.firmDetails}
                 />
               </div>
 
