@@ -79,6 +79,36 @@ async function notifyGmailAgentStatusChanged(
   }
 }
 
+async function notifyGmailAgentPortalEvent(
+  event: "portal_signed" | "portal_docs_complete" | "portal_complete",
+  client: { id: string; fullName: string; phone: string | null; email: string | null },
+  extra?: Record<string, unknown>,
+) {
+  const url = process.env.GMAIL_AGENT_WEBHOOK_URL;
+  const secret = process.env.GMAIL_AGENT_WEBHOOK_SECRET;
+  if (!url || !secret) {
+    console.log(`[GmailAgent:Portal] URL/SECRET not configured — skipping ${event}`);
+    return;
+  }
+  const payload = JSON.stringify({
+    event,
+    client: { id: client.id, fullName: client.fullName, phone: client.phone, email: client.email },
+    at: new Date().toISOString(),
+    ...extra,
+  });
+  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  try {
+    const res = await fetch(`${url}/webhook/portal-event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Refund-Signature": signature },
+      body: payload,
+    });
+    console.log(`[GmailAgent:Portal] ${event} for ${client.id}: ${res.status}`);
+  } catch (err: any) {
+    console.error(`[GmailAgent:Portal] ${event} failed for ${client.id}:`, err.message);
+  }
+}
+
 // Allow-list of file types acceptable for CPA document uploads (ID cards, tax
 // forms, salary slips, bank statements). Rejects .html/.svg/.exe/etc that could
 // be served back as active content via the Supabase signed URL.
@@ -1244,13 +1274,22 @@ export async function registerRoutes(
     const requiredDocs = JSON.parse(session.requiredDocs || "[]") as { key: string; required: boolean }[];
     const allDocsUploaded = requiredDocs.filter(d => d.required).every(d => uploadedKeys.has(d.key));
 
+    const newStatus = allDocsUploaded ? "complete" : "signed";
     const updated = await storage.updatePortalSession(session.id, {
       contractSignedAt: new Date() as any,
       signerName: signerName.trim(),
       signerIp: clientIp,
-      status: allDocsUploaded ? "complete" : "signed",
+      status: newStatus,
     });
     res.json({ success: true, signedAt: updated?.contractSignedAt });
+
+    // Fire-and-forget notifications
+    const client = await storage.getClient(session.clientId);
+    if (client) {
+      const event = newStatus === "complete" ? "portal_complete" : "portal_signed";
+      notifyGmailAgentPortalEvent(event, client, { signerName: signerName.trim() })
+        .catch(err => console.error("[GmailAgent:Portal] sign notify failed:", err.message));
+    }
   });
 
   app.post("/api/portal/:token/upload", upload.single("file"), async (req, res) => {
@@ -1295,7 +1334,8 @@ export async function registerRoutes(
       const newStatus = allRequired
         ? (session.contractSignedAt ? "complete" : "docs_complete")
         : "docs_partial";
-      if (session.status !== "complete") {
+      const wasAlreadyComplete = session.status === "complete";
+      if (!wasAlreadyComplete) {
         await storage.updatePortalSession(session.id, { status: newStatus });
       }
 
@@ -1306,6 +1346,16 @@ export async function registerRoutes(
         fileName: docUpload.fileName,
         uploadedAt: docUpload.uploadedAt,
       });
+
+      // Notify Eden when all required docs are uploaded (fire-and-forget)
+      if (allRequired && !wasAlreadyComplete) {
+        const client = await storage.getClient(session.clientId).catch(() => null);
+        if (client) {
+          const event = newStatus === "complete" ? "portal_complete" : "portal_docs_complete";
+          notifyGmailAgentPortalEvent(event, client, { uploadedCount: allUploads.length })
+            .catch(err => console.error("[GmailAgent:Portal] upload notify failed:", err.message));
+        }
+      }
     } catch (err: any) {
       res.status(500).json({ message: `שגיאה בהעלאה: ${err.message}` });
     }
