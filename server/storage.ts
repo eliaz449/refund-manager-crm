@@ -118,7 +118,9 @@ export interface IStorage {
   updatePortalSession(id: string, update: Partial<InsertPortalSession>): Promise<PortalSession | undefined>;
 
   createPortalDocUpload(upload: InsertPortalDocUpload): Promise<PortalDocUpload>;
+  getPortalDocUpload(id: string): Promise<PortalDocUpload | undefined>;
   getPortalDocUploads(portalSessionId: string): Promise<PortalDocUpload[]>;
+  getPortalDocUploadsByClient(clientId: string): Promise<PortalDocUpload[]>;
   deletePortalDocUpload(id: string): Promise<void>;
 }
 
@@ -538,9 +540,20 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async getPortalDocUpload(id: string): Promise<PortalDocUpload | undefined> {
+    const [row] = await db.select().from(portalDocUploads).where(eq(portalDocUploads.id, id));
+    return row;
+  }
+
   async getPortalDocUploads(portalSessionId: string): Promise<PortalDocUpload[]> {
     return db.select().from(portalDocUploads)
       .where(eq(portalDocUploads.portalSessionId, portalSessionId))
+      .orderBy(desc(portalDocUploads.uploadedAt));
+  }
+
+  async getPortalDocUploadsByClient(clientId: string): Promise<PortalDocUpload[]> {
+    return db.select().from(portalDocUploads)
+      .where(eq(portalDocUploads.clientId, clientId))
       .orderBy(desc(portalDocUploads.uploadedAt));
   }
 

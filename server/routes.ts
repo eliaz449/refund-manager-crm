@@ -1169,6 +1169,33 @@ export async function registerRoutes(
   });
   // ────────────────────────────────────────────────────────────────
 
+  // CRM: list portal documents for a client (Eden's view)
+  app.get("/api/clients/:clientId/portal-documents", requireOwner, async (req, res) => {
+    const docs = await storage.getPortalDocUploadsByClient(req.params.clientId);
+    res.json(docs.map(d => ({
+      id: d.id,
+      docKey: d.docKey,
+      docLabel: d.docLabel,
+      fileName: d.fileName,
+      mimeType: d.mimeType,
+      sizeBytes: d.sizeBytes,
+      uploadedAt: d.uploadedAt,
+    })));
+  });
+
+  // CRM: download a portal document (Eden only — creates signed Supabase URL)
+  app.get("/api/portal-documents/:id/download", requireOwner, async (req, res) => {
+    if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון לא מוגדר" });
+    const doc = await storage.getPortalDocUpload(req.params.id);
+    if (!doc) return res.status(404).json({ message: "מסמך לא נמצא" });
+    try {
+      const signedUrl = await createSignedUrl(doc.storagePath, 120);
+      res.json({ url: signedUrl, fileName: doc.fileName });
+    } catch (err: any) {
+      res.status(500).json({ message: `שגיאה ביצירת קישור: ${err.message}` });
+    }
+  });
+
   // ─── Portal (public — no auth) ───────────────────────────────────
   app.get("/api/portal/:token", async (req, res) => {
     const session = await storage.getPortalSessionByToken(req.params.token);

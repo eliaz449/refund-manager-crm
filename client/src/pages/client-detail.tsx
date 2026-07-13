@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/status-badge";
 import { DocumentsSection } from "@/components/DocumentsSection";
+import { PortalDocsSection } from "@/components/PortalDocsSection";
 import { PensionChecklist } from "@/components/PensionChecklist";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -927,6 +928,8 @@ export default function ClientDetail() {
           )}
         </CardContent>
       </Card>
+
+      <PortalDocsSection clientId={client.id} />
 
       <DocumentsSection clientId={client.id} />
 
