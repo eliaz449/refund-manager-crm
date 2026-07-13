@@ -62,6 +62,33 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 }).format(value);
 }
 
+// ─── Portal session types + badge ────────────────────────────────
+interface PortalSessionBrief {
+  id: string;
+  clientId: string;
+  status: string;
+  contractSignedAt: string | null;
+}
+
+const PORTAL_STATUS: Record<string, { label: string; cls: string }> = {
+  sent:          { label: "פורטל נשלח",     cls: "bg-blue-100 text-blue-700" },
+  docs_partial:  { label: "מסמכים חלקיים", cls: "bg-amber-100 text-amber-700" },
+  docs_complete: { label: "מסמכים הועלו",   cls: "bg-indigo-100 text-indigo-700" },
+  signed:        { label: "חוזה נחתם",      cls: "bg-purple-100 text-purple-700" },
+  complete:      { label: "הושלם ✓",        cls: "bg-green-100 text-green-700" },
+};
+
+function PortalBadge({ status }: { status: string }) {
+  const s = PORTAL_STATUS[status];
+  if (!s) return null;
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold mt-0.5 ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+// ────────────────────────────────────────────────────────────────
+
 function ActionStatusButton({
   client,
   onChangeStatus,
@@ -522,6 +549,15 @@ export default function Clients() {
 
   const { data: clients, isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: allReminders = [] } = useQuery<Reminder[]>({ queryKey: ["/api/reminders"], refetchInterval: 60000 });
+  const { data: portalSessions = [] } = useQuery<PortalSessionBrief[]>({
+    queryKey: ["/api/portal-sessions"],
+  });
+
+  const portalByClient = useMemo(() => {
+    const map: Record<string, PortalSessionBrief> = {};
+    for (const s of portalSessions) map[s.clientId] = s;
+    return map;
+  }, [portalSessions]);
 
   const remindersByClient = useMemo(() => {
     const map: Record<string, Reminder> = {};
@@ -797,6 +833,9 @@ export default function Clients() {
                               {client.customStatus}
                             </span>
                           )}
+                          {portalByClient[client.id] && (
+                            <PortalBadge status={portalByClient[client.id].status} />
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {client.taxId && <span className="text-xs text-muted-foreground font-mono" dir="ltr">{client.taxId}</span>}
@@ -924,6 +963,9 @@ export default function Clients() {
                             type="text"
                             placeholder="שם"
                           />
+                          {portalByClient[client.id] && (
+                            <PortalBadge status={portalByClient[client.id].status} />
+                          )}
                         </TableCell>
                         <TableCell className="px-2 align-middle">
                           <EditableCell

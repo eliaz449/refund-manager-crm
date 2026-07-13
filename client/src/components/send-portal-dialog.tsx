@@ -123,7 +123,7 @@ export function SendPortalDialog({ client, open, onClose }: Props) {
     },
     onSuccess: (session: PortalSession) => {
       qc.invalidateQueries({ queryKey: ["portal-session", client.id] });
-      qc.invalidateQueries({ queryKey: ["portal-sessions"] });
+      qc.invalidateQueries({ queryKey: ["/api/portal-sessions"] });
       const url = `${window.location.origin}/portal/${session.token}`;
       setGeneratedUrl(url);
     },
