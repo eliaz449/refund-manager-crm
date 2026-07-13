@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,6 +20,7 @@ import PartnerDashboard from "@/pages/partner-dashboard";
 import PartnersPage from "@/pages/partners";
 import DeletedClients from "@/pages/deleted-clients";
 import SelfEmployed from "@/pages/self-employed";
+import Portal from "@/pages/portal";
 import { Loader2 } from "lucide-react";
 import { ReminderNotifications } from "@/hooks/use-reminder-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -52,7 +53,17 @@ const sidebarStyle = {
 };
 
 function AuthenticatedApp() {
+  const [location] = useLocation();
   const { user, isLoading, isAuthenticated } = useAuth();
+
+  // Portal is public — render without auth check
+  if (location.startsWith("/portal/")) {
+    return (
+      <Switch>
+        <Route path="/portal/:token" component={Portal} />
+      </Switch>
+    );
+  }
 
   if (isLoading) {
     return (

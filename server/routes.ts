@@ -4,7 +4,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { storage } from "./storage";
 import { requireAuth, requireOwner, requirePartner, requireBotOrOwner } from "./auth";
-import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema, insertPartnerLeadSchema } from "@shared/schema";
+import { insertClientSchema, insertCaseSchema, insertTaskSchema, insertPaymentSchema, insertCommunicationLogSchema, insertTransactionSchema, insertClientNoteSchema, insertPartnerLeadSchema, type PortalDocUpload } from "@shared/schema";
 import { formatNewLeadMessage, formatReminderMessage, isLeadAlreadyNotified, markLeadNotified } from "./whatsapp";
 import multer from "multer";
 import { uploadDocument, createSignedUrl, deleteDocument as deleteFromStorage, isStorageConfigured } from "./supabaseStorage";
@@ -1112,6 +1112,189 @@ export async function registerRoutes(
     } catch (err: any) {
       res.status(500).json({ message: `שגיאה במחיקה: ${err.message}` });
     }
+  });
+  // ────────────────────────────────────────────────────────────────
+
+  // ─── Portal Sessions (CRM side — protected) ─────────────────────
+  // Get all portal sessions so the client list can show status badges
+  app.get("/api/portal-sessions", requireOwner, async (_req, res) => {
+    const sessions = await storage.getAllPortalSessions();
+    res.json(sessions);
+  });
+
+  app.get("/api/clients/:clientId/portal-session", requireOwner, async (req, res) => {
+    const sessions = await storage.getPortalSessionsByClient(req.params.clientId);
+    res.json(sessions[0] || null);
+  });
+
+  app.post("/api/clients/:clientId/portal-session", requireOwner, async (req, res) => {
+    const { commissionType, commissionValue, requiredDocs, notes } = req.body ?? {};
+    const client = await storage.getClient(req.params.clientId);
+    if (!client) return res.status(404).json({ message: "לקוח לא נמצא" });
+
+    const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // 60 days
+
+    // If a session already exists, update it with a fresh token
+    const existing = await storage.getPortalSessionsByClient(req.params.clientId);
+    if (existing.length > 0) {
+      const freshToken = crypto.randomBytes(32).toString("hex");
+      const updated = await storage.updatePortalSession(existing[0].id, {
+        token: freshToken,
+        commissionType: commissionType || "percentage",
+        commissionValue: commissionValue ?? null,
+        requiredDocs: JSON.stringify(requiredDocs || []),
+        notes: notes || null,
+        status: "sent",
+        expiresAt,
+        contractSignedAt: null as any,
+        signerName: null as any,
+        signerIp: null as any,
+      });
+      return res.json(updated);
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const session = await storage.createPortalSession({
+      clientId: req.params.clientId,
+      token,
+      commissionType: commissionType || "percentage",
+      commissionValue: commissionValue ?? null,
+      requiredDocs: JSON.stringify(requiredDocs || []),
+      status: "sent",
+      expiresAt,
+      notes: notes || null,
+      createdBy: (req.user as any)?.fullName || "system",
+    });
+    res.json(session);
+  });
+  // ────────────────────────────────────────────────────────────────
+
+  // ─── Portal (public — no auth) ───────────────────────────────────
+  app.get("/api/portal/:token", async (req, res) => {
+    const session = await storage.getPortalSessionByToken(req.params.token);
+    if (!session) return res.status(404).json({ message: "קישור לא תקין או פג תוקף" });
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      return res.status(410).json({ message: "הקישור פג תוקף" });
+    }
+    const client = await storage.getClient(session.clientId);
+    if (!client) return res.status(404).json({ message: "לקוח לא נמצא" });
+
+    const uploads = await storage.getPortalDocUploads(session.id);
+    const uploadedKeys = new Set(uploads.map((u: PortalDocUpload) => u.docKey));
+
+    res.json({
+      sessionId: session.id,
+      clientName: client.fullName,
+      clientType: client.clientType,
+      commissionType: session.commissionType,
+      commissionValue: session.commissionValue,
+      requiredDocs: JSON.parse(session.requiredDocs || "[]"),
+      status: session.status,
+      contractSignedAt: session.contractSignedAt,
+      signerName: session.signerName,
+      uploadedKeys: Array.from(uploadedKeys),
+    });
+  });
+
+  app.post("/api/portal/:token/sign", async (req, res) => {
+    const session = await storage.getPortalSessionByToken(req.params.token);
+    if (!session) return res.status(404).json({ message: "קישור לא תקין" });
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      return res.status(410).json({ message: "הקישור פג תוקף" });
+    }
+    if (session.contractSignedAt) {
+      return res.status(400).json({ message: "החוזה כבר נחתם" });
+    }
+    const { signerName } = req.body ?? {};
+    if (!signerName || typeof signerName !== "string" || signerName.trim().length < 2) {
+      return res.status(400).json({ message: "יש להזין שם מלא לחתימה" });
+    }
+    const clientIp = (req.headers["x-forwarded-for"] as string || req.ip || "unknown")
+      .split(",")[0].trim();
+
+    const uploads = await storage.getPortalDocUploads(session.id);
+    const uploadedKeys = new Set(uploads.map((u: PortalDocUpload) => u.docKey));
+    const requiredDocs = JSON.parse(session.requiredDocs || "[]") as { key: string; required: boolean }[];
+    const allDocsUploaded = requiredDocs.filter(d => d.required).every(d => uploadedKeys.has(d.key));
+
+    const updated = await storage.updatePortalSession(session.id, {
+      contractSignedAt: new Date() as any,
+      signerName: signerName.trim(),
+      signerIp: clientIp,
+      status: allDocsUploaded ? "complete" : "signed",
+    });
+    res.json({ success: true, signedAt: updated?.contractSignedAt });
+  });
+
+  app.post("/api/portal/:token/upload", upload.single("file"), async (req, res) => {
+    const session = await storage.getPortalSessionByToken(req.params.token);
+    if (!session) return res.status(404).json({ message: "קישור לא תקין" });
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      return res.status(410).json({ message: "הקישור פג תוקף" });
+    }
+    if (!isStorageConfigured()) return res.status(503).json({ message: "אחסון מסמכים לא מוגדר" });
+
+    const file = (req as any).file;
+    if (!file) return res.status(400).json({ message: "לא נשלח קובץ" });
+
+    const docKey = req.body?.docKey as string;
+    const docLabel = req.body?.docLabel as string;
+    if (!docKey) return res.status(400).json({ message: "docKey חסר" });
+
+    try {
+      const storagePath = await uploadDocument({
+        clientId: session.clientId,
+        fileName: file.originalname,
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+      });
+
+      const docUpload = await storage.createPortalDocUpload({
+        portalSessionId: session.id,
+        clientId: session.clientId,
+        docKey,
+        docLabel: docLabel || docKey,
+        fileName: file.originalname,
+        storagePath,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+      });
+
+      // Update session status
+      const allUploads = await storage.getPortalDocUploads(session.id);
+      const uploadedKeys = new Set(allUploads.map((u: PortalDocUpload) => u.docKey));
+      const requiredDocs = JSON.parse(session.requiredDocs || "[]") as { key: string; required: boolean }[];
+      const allRequired = requiredDocs.filter(d => d.required).every(d => uploadedKeys.has(d.key));
+      const newStatus = allRequired
+        ? (session.contractSignedAt ? "complete" : "docs_complete")
+        : "docs_partial";
+      if (session.status !== "complete") {
+        await storage.updatePortalSession(session.id, { status: newStatus });
+      }
+
+      res.json({
+        id: docUpload.id,
+        docKey: docUpload.docKey,
+        docLabel: docUpload.docLabel,
+        fileName: docUpload.fileName,
+        uploadedAt: docUpload.uploadedAt,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: `שגיאה בהעלאה: ${err.message}` });
+    }
+  });
+
+  app.get("/api/portal/:token/documents", async (req, res) => {
+    const session = await storage.getPortalSessionByToken(req.params.token);
+    if (!session) return res.status(404).json({ message: "קישור לא תקין" });
+    const uploads = await storage.getPortalDocUploads(session.id);
+    res.json(uploads.map((u: PortalDocUpload) => ({
+      id: u.id,
+      docKey: u.docKey,
+      docLabel: u.docLabel,
+      fileName: u.fileName,
+      uploadedAt: u.uploadedAt,
+    })));
   });
   // ────────────────────────────────────────────────────────────────
 

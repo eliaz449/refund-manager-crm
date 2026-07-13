@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   Plus, Search, Phone, Mail, MoreHorizontal, Eye, Trash2, Clock,
   Bell, BellOff, ChevronDown, ChevronUp, Calendar, Handshake, Loader2,
-  ChevronLeft, ChevronRight, Check, Briefcase
+  ChevronLeft, ChevronRight, Check, Briefcase, Send
 } from "lucide-react";
 import { formatDateTime, relativeTime } from "@/lib/date-utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/status-badge";
 import { EditableCell } from "@/components/EditableCell";
 import { PageHeader } from "@/components/page-header";
+import { SendPortalDialog } from "@/components/send-portal-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -508,6 +509,7 @@ export default function Clients() {
   const [newClientSource, setNewClientSource] = useState("direct");
   const [reminderClient, setReminderClient] = useState<Client | null>(null);
   const [shareClient, setShareClient] = useState<Client | null>(null);
+  const [portalClient, setPortalClient] = useState<Client | null>(null);
   const [notRelevantClient, setNotRelevantClient] = useState<Client | null>(null);
   const [expandedCriteria, setExpandedCriteria] = useState<Set<string>>(new Set());
   const [yearOffset, setYearOffset] = useState(0); // 0 = current year as last column
@@ -814,6 +816,9 @@ export default function Clients() {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setShareClient(client); }}>
                             <Handshake className="w-4 h-4 ml-2" />העבר לשותף
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setPortalClient(client); }}>
+                            <Send className="w-4 h-4 ml-2 text-blue-600" />שלח פורטל מסמכים
+                          </DropdownMenuItem>
                           {client.clientType !== "self_employed" && (
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); moveToSelfEmployedMutation.mutate(client.id); }}>
                               <Briefcase className="w-4 h-4 ml-2" />העבר לעצמאים
@@ -1043,6 +1048,9 @@ export default function Clients() {
                               <DropdownMenuItem onClick={() => setShareClient(client)}>
                                 <Handshake className="w-4 h-4 ml-2" />העבר לשותף
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setPortalClient(client)}>
+                                <Send className="w-4 h-4 ml-2 text-blue-600" />שלח פורטל מסמכים
+                              </DropdownMenuItem>
                               {client.clientType !== "self_employed" && (
                                 <DropdownMenuItem onClick={() => moveToSelfEmployedMutation.mutate(client.id)}>
                                   <Briefcase className="w-4 h-4 ml-2" />העבר לעצמאים
@@ -1095,6 +1103,14 @@ export default function Clients() {
           client={shareClient}
           open={!!shareClient}
           onClose={() => setShareClient(null)}
+        />
+      )}
+
+      {portalClient && (
+        <SendPortalDialog
+          client={portalClient}
+          open={!!portalClient}
+          onClose={() => setPortalClient(null)}
         />
       )}
     </div>

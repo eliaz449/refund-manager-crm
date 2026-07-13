@@ -325,6 +325,46 @@ export type InsertPartnerLeadActivity = z.infer<typeof insertPartnerLeadActivity
 export type PartnerLeadActivity = typeof partnerLeadActivities.$inferSelect;
 // ────────────────────────────────────────────────────────────────
 
+// ─── Portal Sessions ─────────────────────────────────────────────
+export const portalSessions = pgTable("portal_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  token: text("token").notNull(),
+  commissionType: text("commission_type").notNull().default("percentage"),
+  commissionValue: numeric("commission_value"),
+  requiredDocs: text("required_docs"), // JSON: [{key, label, required}]
+  status: text("status").notNull().default("sent"),
+  contractSignedAt: timestamp("contract_signed_at"),
+  signerName: text("signer_name"),
+  signerIp: text("signer_ip"),
+  expiresAt: timestamp("expires_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: text("created_by"),
+});
+
+export const portalDocUploads = pgTable("portal_doc_uploads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  portalSessionId: varchar("portal_session_id").notNull(),
+  clientId: varchar("client_id").notNull(),
+  docKey: text("doc_key").notNull(),
+  docLabel: text("doc_label"),
+  fileName: text("file_name").notNull(),
+  storagePath: text("storage_path").notNull(),
+  mimeType: text("mime_type"),
+  sizeBytes: integer("size_bytes"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
+export const insertPortalSessionSchema = createInsertSchema(portalSessions).omit({ id: true, createdAt: true });
+export const insertPortalDocUploadSchema = createInsertSchema(portalDocUploads).omit({ id: true, uploadedAt: true });
+
+export type PortalSession = typeof portalSessions.$inferSelect;
+export type InsertPortalSession = z.infer<typeof insertPortalSessionSchema>;
+export type PortalDocUpload = typeof portalDocUploads.$inferSelect;
+export type InsertPortalDocUpload = z.infer<typeof insertPortalDocUploadSchema>;
+// ────────────────────────────────────────────────────────────────
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true, createdAt: true, updatedAt: true });

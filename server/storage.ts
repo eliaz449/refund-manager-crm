@@ -2,7 +2,7 @@ import { eq, desc, sql, and, or, count, isNull, isNotNull } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, clients, cases, tasks, payments, communicationLogs, transactions, passwordResetTokens, clientNotes, webhookEvents, reminders,
-  partnerLeads, partnerLeadActivities, documents,
+  partnerLeads, partnerLeadActivities, documents, portalSessions, portalDocUploads,
   type User, type InsertUser,
   type Document, type InsertDocument,
   type Client, type InsertClient,
@@ -16,6 +16,8 @@ import {
   type Reminder, type InsertReminder,
   type PartnerLead, type InsertPartnerLead,
   type PartnerLeadActivity, type InsertPartnerLeadActivity,
+  type PortalSession, type InsertPortalSession,
+  type PortalDocUpload, type InsertPortalDocUpload,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -107,6 +109,17 @@ export interface IStorage {
   getDocument(id: string): Promise<Document | undefined>;
   createDocument(doc: InsertDocument): Promise<Document>;
   deleteDocument(id: string): Promise<void>;
+
+  createPortalSession(session: InsertPortalSession): Promise<PortalSession>;
+  getPortalSession(id: string): Promise<PortalSession | undefined>;
+  getPortalSessionByToken(token: string): Promise<PortalSession | undefined>;
+  getPortalSessionsByClient(clientId: string): Promise<PortalSession[]>;
+  getAllPortalSessions(): Promise<PortalSession[]>;
+  updatePortalSession(id: string, update: Partial<InsertPortalSession>): Promise<PortalSession | undefined>;
+
+  createPortalDocUpload(upload: InsertPortalDocUpload): Promise<PortalDocUpload>;
+  getPortalDocUploads(portalSessionId: string): Promise<PortalDocUpload[]>;
+  deletePortalDocUpload(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -488,6 +501,51 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDocument(id: string): Promise<void> {
     await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  async createPortalSession(session: InsertPortalSession): Promise<PortalSession> {
+    const [created] = await db.insert(portalSessions).values(session).returning();
+    return created;
+  }
+
+  async getPortalSession(id: string): Promise<PortalSession | undefined> {
+    const [row] = await db.select().from(portalSessions).where(eq(portalSessions.id, id));
+    return row;
+  }
+
+  async getPortalSessionByToken(token: string): Promise<PortalSession | undefined> {
+    const [row] = await db.select().from(portalSessions).where(eq(portalSessions.token, token));
+    return row;
+  }
+
+  async getPortalSessionsByClient(clientId: string): Promise<PortalSession[]> {
+    return db.select().from(portalSessions)
+      .where(eq(portalSessions.clientId, clientId))
+      .orderBy(desc(portalSessions.createdAt));
+  }
+
+  async getAllPortalSessions(): Promise<PortalSession[]> {
+    return db.select().from(portalSessions).orderBy(desc(portalSessions.createdAt));
+  }
+
+  async updatePortalSession(id: string, update: Partial<InsertPortalSession>): Promise<PortalSession | undefined> {
+    const [updated] = await db.update(portalSessions).set(update).where(eq(portalSessions.id, id)).returning();
+    return updated;
+  }
+
+  async createPortalDocUpload(upload: InsertPortalDocUpload): Promise<PortalDocUpload> {
+    const [created] = await db.insert(portalDocUploads).values(upload).returning();
+    return created;
+  }
+
+  async getPortalDocUploads(portalSessionId: string): Promise<PortalDocUpload[]> {
+    return db.select().from(portalDocUploads)
+      .where(eq(portalDocUploads.portalSessionId, portalSessionId))
+      .orderBy(desc(portalDocUploads.uploadedAt));
+  }
+
+  async deletePortalDocUpload(id: string): Promise<void> {
+    await db.delete(portalDocUploads).where(eq(portalDocUploads.id, id));
   }
 }
 
