@@ -21,6 +21,7 @@ import PartnersPage from "@/pages/partners";
 import DeletedClients from "@/pages/deleted-clients";
 import SelfEmployed from "@/pages/self-employed";
 import Portal from "@/pages/portal";
+import ActivePortals from "@/pages/active-portals";
 import { Loader2 } from "lucide-react";
 import { ReminderNotifications } from "@/hooks/use-reminder-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -42,6 +43,7 @@ function Router() {
       <Route path="/partners" component={PartnersPage} />
       <Route path="/settings" component={Settings} />
       <Route path="/webhook-events" component={WebhookEvents} />
+      <Route path="/active-portals" component={ActivePortals} />
       <Route component={NotFound} />
     </Switch>
   );

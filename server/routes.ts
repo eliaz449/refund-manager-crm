@@ -1152,6 +1152,24 @@ export async function registerRoutes(
     res.json(sessions);
   });
 
+  // Enriched sessions with client name/phone for the Active Portals screen
+  app.get("/api/portal-sessions/full", requireOwner, async (_req, res) => {
+    const sessions = await storage.getAllPortalSessions();
+    const clientIds = [...new Set(sessions.map(s => s.clientId))];
+    const clients = await Promise.all(clientIds.map(id => storage.getClient(id)));
+    const clientMap = new Map(clients.filter(Boolean).map(c => [c!.id, c!]));
+    const enriched = sessions.map(s => {
+      const c = clientMap.get(s.clientId);
+      return {
+        ...s,
+        clientName: c?.fullName ?? "לקוח לא ידוע",
+        clientPhone: c?.phone ?? null,
+        clientEmail: c?.email ?? null,
+      };
+    });
+    res.json(enriched);
+  });
+
   app.get("/api/clients/:clientId/portal-session", requireOwner, async (req, res) => {
     const sessions = await storage.getPortalSessionsByClient(req.params.clientId);
     res.json(sessions[0] || null);
