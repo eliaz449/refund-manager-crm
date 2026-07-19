@@ -341,6 +341,14 @@ export const portalSessions = pgTable("portal_sessions", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: text("created_by"),
+  // Bank direct-debit authorization
+  bankHolderName: text("bank_holder_name"),
+  bankHolderId: text("bank_holder_id"),
+  bankName: text("bank_name"),
+  bankBranch: text("bank_branch"),
+  bankAccount: text("bank_account"),
+  bankAuthSignedAt: timestamp("bank_auth_signed_at"),
+  bankAuthSignerIp: text("bank_auth_signer_ip"),
 });
 
 export const portalDocUploads = pgTable("portal_doc_uploads", {

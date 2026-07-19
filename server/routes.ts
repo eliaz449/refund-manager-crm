@@ -1268,6 +1268,7 @@ export async function registerRoutes(
       contractSignedAt: session.contractSignedAt,
       signerName: session.signerName,
       uploadedKeys: Array.from(uploadedKeys),
+      bankAuthSignedAt: session.bankAuthSignedAt ?? null,
       firmDetails: {
         name: process.env.EDEN_FIRM_NAME ?? "עדן אסולין, רו\"ח",
         companyId: process.env.EDEN_COMPANY_ID ?? null,
@@ -1385,6 +1386,47 @@ export async function registerRoutes(
     } catch (err: any) {
       res.status(500).json({ message: `שגיאה בהעלאה: ${err.message}` });
     }
+  });
+
+  // Bank direct-debit authorization
+  app.post("/api/portal/:token/bank-auth", async (req, res) => {
+    const session = await storage.getPortalSessionByToken(req.params.token);
+    if (!session) return res.status(404).json({ message: "קישור לא תקין" });
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      return res.status(410).json({ message: "הקישור פג תוקף" });
+    }
+    if (!session.contractSignedAt) {
+      return res.status(400).json({ message: "יש לחתום על ההסכם תחילה" });
+    }
+    if (session.bankAuthSignedAt) {
+      return res.status(400).json({ message: "הרשאת החיוב כבר נחתמה" });
+    }
+
+    const { holderName, holderId, bankName, branchNumber, accountNumber } = req.body ?? {};
+    if (!holderName?.trim() || !holderId?.trim() || !bankName?.trim() || !branchNumber?.trim() || !accountNumber?.trim()) {
+      return res.status(400).json({ message: "יש למלא את כל השדות" });
+    }
+    if (!/^\d{2,3}$/.test(branchNumber.trim())) {
+      return res.status(400).json({ message: "מספר סניף לא תקין" });
+    }
+    if (!/^\d{4,12}$/.test(accountNumber.trim())) {
+      return res.status(400).json({ message: "מספר חשבון לא תקין" });
+    }
+
+    const clientIp = (req.headers["x-forwarded-for"] as string || req.ip || "unknown")
+      .split(",")[0].trim();
+
+    await storage.updatePortalSession(session.id, {
+      bankHolderName: holderName.trim(),
+      bankHolderId: holderId.trim(),
+      bankName: bankName.trim(),
+      bankBranch: branchNumber.trim(),
+      bankAccount: accountNumber.trim(),
+      bankAuthSignedAt: new Date(),
+      bankAuthSignerIp: clientIp,
+    });
+
+    res.json({ success: true });
   });
 
   app.get("/api/portal/:token/documents", async (req, res) => {

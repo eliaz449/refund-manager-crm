@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileText, CheckCircle2, Clock, Send } from "lucide-react";
+import { Download, FileText, CheckCircle2, Clock, Send, CreditCard } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,11 @@ interface PortalSession {
   contractSignedAt: string | null;
   signerName: string | null;
   createdAt: string;
+  bankHolderName: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  bankAccount: string | null;
+  bankAuthSignedAt: string | null;
 }
 
 const STATUS_INFO: Record<string, { label: string; cls: string }> = {
@@ -124,6 +129,27 @@ export function PortalDocsSection({ clientId }: { clientId: string }) {
           </div>
         )}
       </CardHeader>
+
+      {/* Bank auth status */}
+      <CardContent className="pt-0 pb-0">
+        {session.bankAuthSignedAt ? (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">
+            <CreditCard className="w-4 h-4 flex-shrink-0" />
+            <span>
+              הרשאת חיוב נחתמה — <strong>{session.bankHolderName}</strong>
+              {session.bankName && <span> | {session.bankName}</span>}
+              {session.bankBranch && session.bankAccount && (
+                <span> | סניף {session.bankBranch} / חשבון {session.bankAccount}</span>
+              )}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            <Clock className="w-4 h-4 flex-shrink-0" />
+            <span>הרשאת חיוב — טרם מולאה על ידי הלקוח</span>
+          </div>
+        )}
+      </CardContent>
 
       <CardContent className="pt-0">
         {docs.length === 0 ? (

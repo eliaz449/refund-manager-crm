@@ -33,8 +33,25 @@ interface PortalData {
   contractSignedAt: string | null;
   signerName: string | null;
   uploadedKeys: string[];
+  bankAuthSignedAt: string | null;
   firmDetails?: FirmDetails;
 }
+
+const ISRAELI_BANKS = [
+  { code: "12", name: "בנק הפועלים" },
+  { code: "10", name: "בנק לאומי" },
+  { code: "20", name: "בנק מזרחי-טפחות" },
+  { code: "11", name: "בנק דיסקונט" },
+  { code: "31", name: "הבינלאומי הראשון" },
+  { code: "14", name: "בנק אוצר החייל" },
+  { code: "17", name: "מרכנתיל דיסקונט" },
+  { code: "52", name: "פועלי אגודת ישראל" },
+  { code: "54", name: "בנק ירושלים" },
+  { code: "13", name: "בנק אגוד" },
+  { code: "34", name: "בנק ערבי ישראל" },
+  { code: "26", name: "One Zero / יובנק" },
+  { code: "46", name: "בנק המשכן (טפחות)" },
+];
 
 interface UploadedDoc {
   id: string;
@@ -253,6 +270,125 @@ function DocUploadRow({
   );
 }
 
+// ─── Bank auth form ───────────────────────────────────────────────
+function BankAuthForm({ token, onDone }: { token: string; onDone: () => void }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    holderName: "", holderId: "", bankName: "", branchNumber: "", accountNumber: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [consent, setConsent] = useState(false);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(prev => ({ ...prev, [k]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!consent) {
+      toast({ title: "יש לאשר את ההצהרה", variant: "destructive" });
+      return;
+    }
+    for (const [k, v] of Object.entries(form)) {
+      if (!v.trim()) {
+        toast({ title: "יש למלא את כל השדות", variant: "destructive" });
+        return;
+      }
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/portal/${token}/bank-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "שגיאה" }));
+        throw new Error(err.message);
+      }
+      onDone();
+      toast({ title: "הרשאת החיוב נשמרה", description: "הטפסים הושלמו בהצלחה" });
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+        <p className="font-semibold mb-1">למה אנחנו מבקשים את פרטי חשבון הבנק?</p>
+        <p>
+          על פי ההסכם שחתמת, התשלום עבור שירותינו מועבר תוך 3 ימי עסקים מקבלת ההחזר.
+          פרטי החשבון ישמשו <strong>רק במקרה של אי-תשלום</strong> כמנגנון גיבוי חוקי —
+          הרשאת חיוב ישירה מחשבון הבנק.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">שם מלא של בעל החשבון</label>
+          <Input placeholder="ישראל ישראלי" value={form.holderName} onChange={set("holderName")} dir="rtl" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">מספר תעודת זהות של בעל החשבון</label>
+          <Input placeholder="000000000" value={form.holderId} onChange={set("holderId")} dir="ltr" className="text-left" inputMode="numeric" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">בנק</label>
+          <select
+            value={form.bankName}
+            onChange={set("bankName")}
+            className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            dir="rtl"
+          >
+            <option value="">בחר בנק...</option>
+            {ISRAELI_BANKS.map(b => (
+              <option key={b.code} value={b.name}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">מספר סניף</label>
+            <Input placeholder="000" value={form.branchNumber} onChange={set("branchNumber")} dir="ltr" className="text-left" inputMode="numeric" maxLength={4} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">מספר חשבון</label>
+            <Input placeholder="000000000" value={form.accountNumber} onChange={set("accountNumber")} dir="ltr" className="text-left" inputMode="numeric" maxLength={12} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={e => setConsent(e.target.checked)}
+            className="mt-0.5 flex-shrink-0"
+          />
+          <span>
+            אני מאשר/ת כי פרטי חשבון הבנק שמסרתי הם שלי ומדויקים, ומסכים/ה שיחויבו
+            <strong> רק</strong> במקרה של אי-העברת שכר הטרחה בזמן הקבוע בהסכם.
+          </span>
+        </label>
+      </div>
+
+      <Button
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+        onClick={handleSubmit}
+        disabled={submitting || !consent}
+      >
+        {submitting ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+        {submitting ? "שומר..." : "אישור פרטי חשבון בנק"}
+      </Button>
+    </div>
+  );
+}
+
 // ─── Main portal page ─────────────────────────────────────────────
 export default function Portal() {
   const [, params] = useRoute("/portal/:token");
@@ -263,6 +399,7 @@ export default function Portal() {
   const [signing, setSigning] = useState(false);
   const [uploadedKeys, setUploadedKeys] = useState<Set<string>>(new Set());
   const [localSigned, setLocalSigned] = useState(false);
+  const [localBankAuthDone, setLocalBankAuthDone] = useState(false);
 
   const { data: portal, isLoading, error, refetch } = useQuery<PortalData>({
     queryKey: ["portal", token],
@@ -313,8 +450,9 @@ export default function Portal() {
 
   const requiredCount = requiredDocs.filter(d => d.required).length;
   const uploadedRequiredCount = requiredDocs.filter(d => d.required && allUploadedKeys.has(d.key)).length;
-  const allRequiredDone = requiredCount > 0 && uploadedRequiredCount >= requiredCount;
-  const allDone = signed && allRequiredDone;
+  const allRequiredDone = requiredCount === 0 || uploadedRequiredCount >= requiredCount;
+  const bankAuthDone = localBankAuthDone || !!portal?.bankAuthSignedAt;
+  const allDone = signed && allRequiredDone && bankAuthDone;
 
   // ── Loading ───────────────────────────────────────────────────
   if (isLoading) {
@@ -379,8 +517,8 @@ export default function Portal() {
         <div className="bg-blue-600 text-white rounded-2xl p-5">
           <p className="text-lg font-bold mb-1">שלום, {portal.clientName}</p>
           <p className="text-blue-100 text-sm">
-            כדי שנוכל להתחיל בטיפול בהחזר המס שלך, יש להשלים שני שלבים:
-            חתימה על הסכם השירות והעלאת המסמכים הנדרשים.
+            כדי שנוכל להתחיל בטיפול בהחזר המס שלך, יש להשלים שלושה שלבים:
+            חתימה על הסכם, העלאת מסמכים, ואישור פרטי חשבון בנק.
           </p>
         </div>
 
@@ -389,8 +527,9 @@ export default function Portal() {
           <div className="flex justify-between text-xs text-gray-500 mb-2">
             <span>התקדמות</span>
             <span>
-              {signed ? "חוזה ✓" : "חוזה ⏳"} &nbsp;|&nbsp;
-              {uploadedRequiredCount}/{requiredCount} מסמכים
+              {signed ? "חוזה ✓" : "חוזה ⏳"}
+              {requiredCount > 0 && <>&nbsp;|&nbsp;{uploadedRequiredCount}/{requiredCount} מסמכים</>}
+              &nbsp;|&nbsp;{bankAuthDone ? "בנק ✓" : "בנק ⏳"}
             </span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2">
@@ -398,7 +537,9 @@ export default function Portal() {
               className="bg-blue-600 h-2 rounded-full transition-all duration-500"
               style={{
                 width: `${Math.round(
-                  ((signed ? 1 : 0) + uploadedRequiredCount / Math.max(requiredCount, 1)) / 2 * 100
+                  ((signed ? 1 : 0) +
+                    (requiredCount > 0 ? uploadedRequiredCount / requiredCount : 1) +
+                    (bankAuthDone ? 1 : 0)) / 3 * 100
                 )}%`,
               }}
             />
@@ -512,6 +653,41 @@ export default function Portal() {
                   * מסמכים ללא סימון &quot;אופציונלי&quot; הם חובה
                 </p>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Section 3: Bank auth ── */}
+        <div className={`bg-white rounded-xl border overflow-hidden ${!signed ? "opacity-60" : ""}`}>
+          <div className="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
+            {bankAuthDone ? (
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            ) : !signed ? (
+              <Lock className="w-5 h-5 text-gray-400" />
+            ) : (
+              <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+              </svg>
+            )}
+            <h2 className="font-bold text-gray-800">שלב 3 — הרשאת חיוב לחשבון בנק</h2>
+            {!signed && (
+              <span className="text-xs text-gray-400 mr-auto">יינעל עד לחתימה</span>
+            )}
+          </div>
+
+          {bankAuthDone ? (
+            <div className="p-4 flex items-center gap-2 text-green-700 bg-green-50">
+              <CheckCircle2 className="w-5 h-5" />
+              <p className="text-sm font-medium">פרטי חשבון הבנק נשמרו בהצלחה</p>
+            </div>
+          ) : !signed ? (
+            <div className="p-4 text-center text-gray-400 text-sm py-8">
+              <Lock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <p>יש לחתום על ההסכם תחילה</p>
+            </div>
+          ) : (
+            <div className="p-4">
+              <BankAuthForm token={token} onDone={() => setLocalBankAuthDone(true)} />
             </div>
           )}
         </div>
