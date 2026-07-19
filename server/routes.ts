@@ -1175,14 +1175,20 @@ export async function registerRoutes(
     res.json(sessions[0] || null);
   });
 
+  // Delete portal session (Eden can remove a portal from a client)
+  app.delete("/api/portal-sessions/:id", requireOwner, async (req, res) => {
+    const session = await storage.getPortalSession(req.params.id);
+    if (!session) return res.status(404).json({ message: "פורטל לא נמצא" });
+    await storage.deletePortalSession(session.id);
+    res.json({ success: true });
+  });
+
   app.post("/api/clients/:clientId/portal-session", requireOwner, async (req, res) => {
     const { commissionType, commissionValue, requiredDocs, notes } = req.body ?? {};
     const client = await storage.getClient(req.params.clientId);
     if (!client) return res.status(404).json({ message: "לקוח לא נמצא" });
 
-    const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000); // 60 days
-
-    // If a session already exists, update it with a fresh token
+    // If a session already exists, update it with a fresh token (no expiry)
     const existing = await storage.getPortalSessionsByClient(req.params.clientId);
     if (existing.length > 0) {
       const freshToken = crypto.randomBytes(32).toString("hex");
@@ -1193,7 +1199,7 @@ export async function registerRoutes(
         requiredDocs: JSON.stringify(requiredDocs || []),
         notes: notes || null,
         status: "sent",
-        expiresAt,
+        expiresAt: null as any,
         contractSignedAt: null as any,
         signerName: null as any,
         signerIp: null as any,
@@ -1209,7 +1215,7 @@ export async function registerRoutes(
       commissionValue: commissionValue ?? null,
       requiredDocs: JSON.stringify(requiredDocs || []),
       status: "sent",
-      expiresAt,
+      expiresAt: null,
       notes: notes || null,
       createdBy: (req.user as any)?.fullName || "system",
     });

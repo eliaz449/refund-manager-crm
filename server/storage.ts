@@ -122,6 +122,7 @@ export interface IStorage {
   getPortalDocUploads(portalSessionId: string): Promise<PortalDocUpload[]>;
   getPortalDocUploadsByClient(clientId: string): Promise<PortalDocUpload[]>;
   deletePortalDocUpload(id: string): Promise<void>;
+  deletePortalSession(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -559,6 +560,11 @@ export class DatabaseStorage implements IStorage {
 
   async deletePortalDocUpload(id: string): Promise<void> {
     await db.delete(portalDocUploads).where(eq(portalDocUploads.id, id));
+  }
+
+  async deletePortalSession(id: string): Promise<void> {
+    await db.delete(portalDocUploads).where(eq(portalDocUploads.portalSessionId, id));
+    await db.delete(portalSessions).where(eq(portalSessions.id, id));
   }
 }
 

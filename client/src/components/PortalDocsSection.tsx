@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { Download, FileText, CheckCircle2, Clock, Send, CreditCard } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, FileText, CheckCircle2, Clock, Send, CreditCard, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +47,7 @@ function formatBytes(bytes: number | null): string {
 
 export function PortalDocsSection({ clientId }: { clientId: string }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: session } = useQuery<PortalSession | null>({
     queryKey: [`/api/clients/${clientId}/portal-session`],
@@ -61,6 +62,24 @@ export function PortalDocsSection({ clientId }: { clientId: string }) {
     queryKey: [`/api/clients/${clientId}/portal-documents`],
     enabled: !!session,
   });
+
+  const handleDelete = async () => {
+    if (!session) return;
+    if (!window.confirm("למחוק את הפורטל של הלקוח הזה? הפעולה תמחק גם את המסמכים שהועלו.")) return;
+    try {
+      const res = await fetch(`/api/portal-sessions/${session.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("שגיאה במחיקה");
+      toast({ title: "הפורטל נמחק" });
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${clientId}/portal-session`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portal-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portal-sessions/full"] });
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    }
+  };
 
   const handleDownload = async (docId: string, fileName: string) => {
     try {
@@ -106,6 +125,15 @@ export function PortalDocsSection({ clientId }: { clientId: string }) {
             <span className={`text-xs font-semibold px-2 py-0.5 rounded ${statusInfo.cls}`}>
               {statusInfo.label}
             </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+              title="מחק פורטל"
+              onClick={handleDelete}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
 
